@@ -7,7 +7,9 @@ command = "pip install -r requirements.txt"
 
 [env.production]
 workers_dev = true
-route = "api.yourdomain.com/*"  # Replace with your domain if you have one
 
 [env.production.vars]
-ENVIRONMENT = "production" 
+ENVIRONMENT = "production"
+
+[site]
+bucket = "./" 
