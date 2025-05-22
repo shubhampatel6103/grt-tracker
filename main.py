@@ -52,7 +52,7 @@ def scrape_grt_stop(stop_number):
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.binary_location = "/usr/bin/chromium"
+        chrome_options.binary_location = "/opt/chrome/chrome"
         print("Installing Chrome driver")
         service = Service("/usr/bin/chromedriver")
         print("Creating driver")
