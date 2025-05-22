@@ -57,7 +57,7 @@ def scrape_grt_stop(stop_number):
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.get(f"https://nextride.grt.ca/stops/{stop_number}")
-        time.sleep(2)
+        time.sleep(5)
         
         # Check if page is still loading
         if "Loading" in driver.title:
