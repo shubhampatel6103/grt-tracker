@@ -1,11 +1,9 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
+from bs4 import BeautifulSoup
+import undetected_chromedriver.v2 as uc
 import time
 
 app = FastAPI(
@@ -17,10 +15,10 @@ app = FastAPI(
 # Enable CORS for all origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class BusTrip(BaseModel):
@@ -34,42 +32,34 @@ class BusScheduleResponse(BaseModel):
     stop_number: int
     trips: List[BusTrip]
 
-def scrape_grt_stop(stop_number):
-    """
-    Scrapes bus schedule data for a given stop number.
-    
-    Args:
-        stop_number (int): The stop number to scrape
-        
-    Returns:
-        list: List of dictionaries containing bus schedule data, or None if failed
-    """
+def scrape_grt_stop(stop_number: int):
     driver = None
     try:
-        print("Configuring Chrome options")
-        # Configure Chrome options
-        chrome_options = Options()
-        chrome_options.binary_location = "/opt/chrome/chrome"
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--disable-extensions")
-        chrome_options.add_argument("--disable-software-rasterizer")
-        print("Installing Chrome driver")
-        service = Service("/usr/bin/chromedriver")
-        print("Creating driver")
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        print("Getting page")
+        print("⚙️ Configuring undetected Chrome options")
+        options = uc.ChromeOptions()
+        options.binary_location = "/opt/chrome/chrome"
+        options.headless = True
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-blink-features=AutomationControlled")
+
+        print("🚀 Launching undetected Chrome driver")
+        driver = uc.Chrome(
+            driver_executable_path="/usr/bin/chromedriver",
+            options=options
+        )
+
+        print(f"🌐 Fetching stop page: https://nextride.grt.ca/stops/{stop_number}")
         driver.get(f"https://nextride.grt.ca/stops/{stop_number}")
         time.sleep(2)
-        print("Page loaded")
-        
-        # Check if page is still loading
+        print("✅ Page loaded")
+
         if "Loading" in driver.title:
             raise HTTPException(status_code=503, detail="Page did not load properly - still showing loading screen")
-            
-        # Parse page and extract data
+
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         trip_rows = soup.find_all('div', class_='trip')
 
@@ -89,7 +79,6 @@ def scrape_grt_stop(stop_number):
 
                 is_real_time = 'estimated' in row.get('class', [])
 
-                # Only add if all key fields are present
                 if route and route_name and departure:
                     trips.append({
                         'route': route,
@@ -99,33 +88,25 @@ def scrape_grt_stop(stop_number):
                         'is_real_time': is_real_time
                     })
             except Exception as e:
-                print(f"Error parsing row: {e}")
-        
+                print(f"⚠️ Error parsing row: {e}")
+
         return trips
+
     except Exception as e:
-        #raise HTTPException(status_code=500, detail=str(e))
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-        
+
     finally:
         if driver:
+            print("🧹 Quitting Chrome driver")
             driver.quit()
 
 @app.get("/api/schedule/{stop_number}", response_model=BusScheduleResponse)
 async def get_schedule(stop_number: int):
-    """
-    Get bus schedule for a specific stop number.
-    
-    Args:
-        stop_number (int): The stop number to get schedule for
-        
-    Returns:
-        BusScheduleResponse: The bus schedule data
-    """
-    print(f"Scraping stop {stop_number}")
+    print(f"📥 Scraping stop {stop_number}")
     trips = scrape_grt_stop(stop_number)
-    print(f"Trips: {trips}")
+    print(f"🚌 Trips found: {trips}")
     real_time_trips = [trip for trip in trips if trip['is_real_time']]
     return BusScheduleResponse(stop_number=stop_number, trips=real_time_trips)
 
