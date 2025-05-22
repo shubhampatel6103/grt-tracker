@@ -3,7 +3,6 @@ builder = "nixpacks"
 buildCommand = """
 apt-get update && \
 apt-get install -y wget unzip fonts-liberation libglib2.0-0 libnss3 libfontconfig1 libxss1 libappindicator3-1 libasound2t64 && \
-# Download compatible Chromium + chromedriver
 wget https://storage.googleapis.com/chrome-for-testing-public/122.0.6261.111/linux64/chrome-linux64.zip && \
 wget https://storage.googleapis.com/chrome-for-testing-public/122.0.6261.111/linux64/chromedriver-linux64.zip && \
 unzip chrome-linux64.zip && mv chrome-linux64 /opt/chrome && \
