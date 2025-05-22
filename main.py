@@ -47,30 +47,30 @@ def scrape_grt_stop(stop_number):
     """
     driver = None
     try:
+        print("Configuring Chrome options")
         # Configure Chrome options
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.binary_location = "/usr/bin/chromium"
-
+        print("Installing Chrome driver")
         service = Service(ChromeDriverManager().install())
+        print("Creating driver")
         driver = webdriver.Chrome(service=service, options=chrome_options)
         print("Getting page")
         driver.get(f"https://nextride.grt.ca/stops/{stop_number}")
-        print("Page loaded")
         time.sleep(2)
+        print("Page loaded")
         
         # Check if page is still loading
-        print(f"Page title: {driver.title}")
         if "Loading" in driver.title:
             raise HTTPException(status_code=503, detail="Page did not load properly - still showing loading screen")
             
         # Parse page and extract data
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         trip_rows = soup.find_all('div', class_='trip')
-        print(f"Trip rows: {trip_rows}")
-        
+
         trips = []
         for row in trip_rows:
             try:
@@ -122,7 +122,6 @@ async def get_schedule(stop_number: int):
     trips = scrape_grt_stop(stop_number)
     print(f"Trips: {trips}")
     real_time_trips = [trip for trip in trips if trip['is_real_time']]
-    print(f"Real time trips: {real_time_trips}")
     return BusScheduleResponse(stop_number=stop_number, trips=real_time_trips)
 
 if __name__ == "__main__":
