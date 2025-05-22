@@ -1,7 +1,6 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,7 +54,7 @@ def scrape_grt_stop(stop_number):
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.binary_location = "/usr/bin/chromium"
         print("Installing Chrome driver")
-        service = Service(ChromeDriverManager().install())
+        service = Service("/usr/bin/chromedriver")
         print("Creating driver")
         driver = webdriver.Chrome(service=service, options=chrome_options)
         print("Getting page")
