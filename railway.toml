@@ -2,7 +2,7 @@
 builder = "nixpacks"
 buildCommand = """
 apt-get update && \
-apt-get install -y chromium libglib2.0-0 libnss3 libfontconfig1 libxss1 libappindicator3-1 libasound2 && \
+apt-get install -y chromium libglib2.0-0 libnss3 libfontconfig1 libxss1 libappindicator3-1 libasound2t64 && \
 pip install --no-cache-dir -r requirements.txt
 """
 
