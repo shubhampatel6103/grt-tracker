@@ -53,7 +53,6 @@ def scrape_grt_stop(stop_number):
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--disable-software-rasterizer")
         chrome_options.add_argument("--single-process")
         chrome_options.binary_location = "/opt/chrome/chrome"
         print("Installing Chrome driver")
@@ -103,6 +102,9 @@ def scrape_grt_stop(stop_number):
         
         return trips
     except Exception as e:
+        #raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
         
     finally:
