@@ -67,14 +67,35 @@ def scrape_grt_stop(stop_number):
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         trip_rows = soup.find_all('div', class_='trip')
         
-        return [{
-            'route': row.find('div', {'aria-label': 'Route'}).text.strip(),
-            'route_name': row.find('div', class_='font-semibold').text.strip(),
-            'destination_detail': row.find_all('div')[1].text.strip(),
-            'departure': row.find('div', class_='minutes').text.strip(),
-            'is_real_time': 'estimated' in row.get('class', [])
-        } for row in trip_rows]
+        trips = []
+        for row in trip_rows:
+            try:
+                route_div = row.find('div', {'aria-label': 'Route'})
+                route = route_div.text.strip() if route_div else None
+
+                name_div = row.find('div', class_='font-semibold')
+                route_name = name_div.text.strip() if name_div else None
+
+                destination_detail = row.find_all('div')[1].text.strip() if len(row.find_all('div')) > 1 else None
+
+                departure_div = row.find('div', class_='minutes')
+                departure = departure_div.text.strip() if departure_div else None
+
+                is_real_time = 'estimated' in row.get('class', [])
+
+                # Only add if all key fields are present
+                if route and route_name and departure:
+                    trips.append({
+                        'route': route,
+                        'route_name': route_name,
+                        'destination_detail': destination_detail,
+                        'departure': departure,
+                        'is_real_time': is_real_time
+                    })
+            except Exception as e:
+                print(f"Error parsing row: {e}")
         
+        return trips
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
         
