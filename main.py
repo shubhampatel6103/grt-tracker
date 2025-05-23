@@ -1,14 +1,11 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
+import httpx
+from bs4 import BeautifulSoup
 import time
 import traceback
-import os
 
 app = FastAPI(
     title="GRT Bus Schedule API",
@@ -40,82 +37,64 @@ class BusScheduleResponse(BaseModel):
     stop_number: int
     trips: List[BusTrip]
 
-def scrape_grt_stop(stop_number):
+async def scrape_grt_stop(stop_number: int):
     print(f"[DEBUG] scrape_grt_stop() called with stop_number={stop_number}")
-    driver = None
+    
     try:
-        print("[DEBUG] Setting Chrome options")
-        chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--disable-extensions")
-        chrome_options.add_argument("--disable-software-rasterizer")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chromedriver_path = "/usr/bin/chromedriver"
-
-        print("[DEBUG] Starting Chrome driver")
-        chrome_service = Service(executable_path=chromedriver_path)
-        driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
-
         url = f"https://nextride.grt.ca/stops/{stop_number}"
-        print(f"[DEBUG] Navigating to URL: {url}")
-        driver.get(url)
-        time.sleep(2)
-
-        print(f"[DEBUG] Page title after load: {driver.title}")
-        if "Loading" in driver.title:
-            raise HTTPException(status_code=503, detail="Page did not load properly.")
-
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        trip_rows = soup.find_all('div', class_='trip')
-        print(f"[DEBUG] Found {len(trip_rows)} trip rows")
-
-        trips = []
-        for idx, row in enumerate(trip_rows):
-            try:
-                route_div = row.find('div', {'aria-label': 'Route'})
-                route = route_div.text.strip() if route_div else None
-
-                name_div = row.find('div', class_='font-semibold')
-                route_name = name_div.text.strip() if name_div else None
-
-                destination_detail = row.find_all('div')[1].text.strip() if len(row.find_all('div')) > 1 else None
-
-                departure_div = row.find('div', class_='minutes')
-                departure = departure_div.text.strip() if departure_div else None
-
-                is_real_time = 'estimated' in row.get('class', [])
-
-                if route and route_name and departure:
-                    trips.append({
-                        'route': route,
-                        'route_name': route_name,
-                        'destination_detail': destination_detail,
-                        'departure': departure,
-                        'is_real_time': is_real_time
-                    })
-            except Exception as inner_e:
-                print(f"[DEBUG] Error parsing row #{idx}: {inner_e}")
+        print(f"[DEBUG] Fetching URL: {url}")
         
-        print(f"[DEBUG] Total parsed trips: {len(trips)}")
-        return trips
+        async with httpx.AsyncClient() as client:
+            # First request to get the initial page
+            response = await client.get(url)
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="Failed to fetch stop data")
+            
+            # Parse the HTML
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Find the API endpoint from the page
+            api_endpoint = None
+            for script in soup.find_all('script'):
+                if 'apiEndpoint' in str(script):
+                    # Extract the API endpoint from the script
+                    # This is a simplified example - you'll need to adjust based on actual page structure
+                    api_endpoint = "https://nextride.grt.ca/api/v1/stops/" + str(stop_number)
+                    break
+            
+            if not api_endpoint:
+                raise HTTPException(status_code=503, detail="Could not find API endpoint")
+            
+            # Make the API request
+            api_response = await client.get(api_endpoint)
+            if api_response.status_code != 200:
+                raise HTTPException(status_code=api_response.status_code, detail="Failed to fetch schedule data")
+            
+            data = api_response.json()
+            
+            # Process the API response
+            trips = []
+            for trip in data.get('trips', []):
+                trips.append({
+                    'route': trip.get('route', ''),
+                    'route_name': trip.get('routeName', ''),
+                    'destination_detail': trip.get('destination', ''),
+                    'departure': trip.get('departureTime', ''),
+                    'is_real_time': trip.get('isRealTime', False)
+                })
+            
+            print(f"[DEBUG] Total parsed trips: {len(trips)}")
+            return trips
 
     except Exception as e:
         print("[ERROR] Exception in scrape_grt_stop:")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-    finally:
-        if driver:
-            print("[DEBUG] Quitting Chrome driver")
-            driver.quit()
-
 @app.get("/api/schedule/{stop_number}", response_model=BusScheduleResponse)
 async def get_schedule(stop_number: int):
     print(f"[DEBUG] API called for stop number: {stop_number}")
-    trips = scrape_grt_stop(stop_number)
+    trips = await scrape_grt_stop(stop_number)
     real_time_trips = [trip for trip in trips if trip['is_real_time']]
     print(f"[DEBUG] Returning {len(real_time_trips)} real-time trips")
     if len(real_time_trips) == 0:
