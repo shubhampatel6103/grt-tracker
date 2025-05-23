@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer-core';
 
 export async function GET(request: Request) {
   try {
@@ -13,9 +14,13 @@ export async function GET(request: Request) {
       );
     }
 
+    const executablePath = await chromium.executablePath();
+
     const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath,
+      headless: chromium.headless
     });
 
     const page = await browser.newPage();
