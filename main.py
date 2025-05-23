@@ -25,6 +25,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def health_check():
+    return {"status": "healthy"}
+
 class BusTrip(BaseModel):
     route: str
     route_name: str
