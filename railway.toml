@@ -5,10 +5,12 @@ buildCommand = "pip install selenium beautifulsoup4 fastapi uvicorn python-doten
 [deploy]
 startCommand = "python main.py"
 healthcheckPath = "/"
-healthcheckTimeout = 100
+healthcheckTimeout = 300
+startTimeout = 300
 
 [deploy.env]
 PYTHON_VERSION = "3.10"
+RAILWAY_ENVIRONMENT = "production"
 
 [phases.setup]
 nixPkgs = ["chromium", "chromium-driver"] 
