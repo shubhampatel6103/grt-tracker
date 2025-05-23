@@ -9,11 +9,6 @@ from typing import List
 import time
 import traceback
 import os
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="GRT Bus Schedule API",
@@ -32,18 +27,7 @@ app.add_middleware(
 
 @app.get("/")
 async def health_check():
-    logger.info("Health check endpoint called")
-    try:
-        # Basic system check
-        return {
-            "status": "healthy",
-            "timestamp": time.time(),
-            "python_version": os.sys.version,
-            "environment": os.getenv("RAILWAY_ENVIRONMENT", "development")
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "healthy"}
 
 class BusTrip(BaseModel):
     route: str
@@ -69,9 +53,11 @@ def scrape_grt_stop(stop_number):
         chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-software-rasterizer")
         chrome_options.add_argument("--window-size=1920,1080")
+        chromedriver_path = "/usr/bin/chromedriver"
 
         print("[DEBUG] Starting Chrome driver")
-        driver = webdriver.Chrome(options=chrome_options)
+        chrome_service = Service(executable_path=chromedriver_path)
+        driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
 
         url = f"https://nextride.grt.ca/stops/{stop_number}"
         print(f"[DEBUG] Navigating to URL: {url}")

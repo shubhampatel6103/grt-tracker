@@ -3,14 +3,12 @@ builder = "nixpacks"
 buildCommand = "pip install selenium beautifulsoup4 fastapi uvicorn python-dotenv"
 
 [deploy]
-startCommand = "python main.py"
+startCommand = "uvicorn main:app --host 0.0.0.0 --port 8000"
 healthcheckPath = "/"
 healthcheckTimeout = 300
-startTimeout = 300
 
 [deploy.env]
 PYTHON_VERSION = "3.10"
-RAILWAY_ENVIRONMENT = "production"
 
 [phases.setup]
 nixPkgs = ["chromium", "chromium-driver"] 
