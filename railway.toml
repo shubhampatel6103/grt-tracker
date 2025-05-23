@@ -6,7 +6,6 @@ buildCommand = "pip install selenium beautifulsoup4 fastapi uvicorn python-doten
 startCommand = "python main.py"
 healthcheckPath = "/"
 healthcheckTimeout = 100
-restartPolicyType = "ON-FAILURE"
 
 [deploy.env]
 PYTHON_VERSION = "3.10"
