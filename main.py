@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import List
 import time
 import traceback
+import os
 
 app = FastAPI(
     title="GRT Bus Schedule API",
@@ -15,6 +16,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Configure CORS to allow all origins during testing
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,17 +42,16 @@ def scrape_grt_stop(stop_number):
     try:
         print("[DEBUG] Setting Chrome options")
         chrome_options = Options()
-        chrome_options.binary_location = "/opt/chrome/chrome"
         chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-software-rasterizer")
+        chrome_options.add_argument("--window-size=1920,1080")
 
         print("[DEBUG] Starting Chrome driver")
-        service = Service("/usr/bin/chromedriver")
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+        driver = webdriver.Chrome(options=chrome_options)
 
         url = f"https://nextride.grt.ca/stops/{stop_number}"
         print(f"[DEBUG] Navigating to URL: {url}")
@@ -111,6 +112,9 @@ async def get_schedule(stop_number: int):
     trips = scrape_grt_stop(stop_number)
     real_time_trips = [trip for trip in trips if trip['is_real_time']]
     print(f"[DEBUG] Returning {len(real_time_trips)} real-time trips")
+    if len(real_time_trips) == 0:
+        print("[DEBUG] No real-time trips found, returning all trips")
+        return BusScheduleResponse(stop_number=stop_number, trips=trips)
     return BusScheduleResponse(stop_number=stop_number, trips=real_time_trips)
 
 if __name__ == "__main__":

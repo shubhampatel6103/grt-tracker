@@ -1,18 +1,16 @@
 [build]
 builder = "nixpacks"
-buildCommand = """
-apt-get update && \
-apt-get install -y wget unzip fonts-liberation libglib2.0-0 libnss3 libfontconfig1 libxss1 libappindicator3-1 libasound2t64 && \
-wget https://storage.googleapis.com/chrome-for-testing-public/122.0.6261.111/linux64/chrome-linux64.zip && \
-wget https://storage.googleapis.com/chrome-for-testing-public/122.0.6261.111/linux64/chromedriver-linux64.zip && \
-unzip chrome-linux64.zip && mv chrome-linux64 /opt/chrome && \
-unzip chromedriver-linux64.zip && mv chromedriver-linux64/chromedriver /usr/bin/chromedriver && \
-chmod +x /usr/bin/chromedriver && \
-pip install --no-cache-dir -r requirements.txt
-"""
+buildCommand = "pip install selenium beautifulsoup4 fastapi uvicorn python-dotenv"
 
 [deploy]
-startCommand = "python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
-healthcheckPath = "/docs"
+startCommand = "python main.py"
+healthcheckPath = "/"
 healthcheckTimeout = 100
-restartPolicyType = "ON_FAILURE" 
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 10
+
+[deploy.env]
+PYTHON_VERSION = "3.10"
+
+[phases.setup]
+nixPkgs = ["chromium", "chromium-driver"] 
