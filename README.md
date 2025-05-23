@@ -1,65 +1,36 @@
-# GRT Tracker API
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-A FastAPI application for tracking GRT data.
+## Getting Started
 
-## Setup and Deployment
+First, run the development server:
 
-### Prerequisites
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-- GitHub account
-- Render account (sign up at https://render.com)
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-### Deployment Steps
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-1. Fork this repository to your GitHub account
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-2. Create a new Web Service on Render:
+## Learn More
 
-   - Go to https://dashboard.render.com/new/web-service
-   - Connect your GitHub repository
-   - Choose the repository
-   - Configure the service:
-     - Name: grt-tracker (or your preferred name)
-     - Environment: Python
-     - Build Command: `pip install -r requirements.txt`
-     - Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-   - Click "Create Web Service"
+To learn more about Next.js, take a look at the following resources:
 
-3. Get your Render API key:
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-   - Go to your Render dashboard
-   - Click on your profile picture
-   - Go to Settings > API Keys
-   - Create a new API key
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-4. Add the Render secrets to your GitHub repository:
+## Deploy on Vercel
 
-   - Go to your repository settings
-   - Navigate to Secrets and Variables > Actions
-   - Add these secrets:
-     - `RENDER_API_KEY`: Your Render API key
-     - `RENDER_SERVICE_ID`: Your service ID (found in the Render dashboard URL)
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-5. Push your code to the main branch:
-   ```bash
-   git add .
-   git commit -m "Initial commit"
-   git push origin main
-   ```
-
-The GitHub Action will automatically deploy your application to Render whenever you push to the main branch.
-
-## Local Development
-
-1. Install dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. Run the application:
-   ```bash
-   uvicorn main:app --reload
-   ```
-
-The API will be available at `http://localhost:8000`
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
