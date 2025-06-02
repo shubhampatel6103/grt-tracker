@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import chromium from '@sparticuz/chromium';
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 
 export async function GET(request: Request) {
   try {
@@ -14,13 +13,9 @@ export async function GET(request: Request) {
       );
     }
 
-    const executablePath = await chromium.executablePath();
-
     const browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath,
-      headless: chromium.headless
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
     const page = await browser.newPage();
@@ -39,8 +34,7 @@ export async function GET(request: Request) {
       const rows = Array.from(document.querySelectorAll('.table-row.trip'));
       return rows.map(row => {
         const route = row.querySelector('.number-highlight')?.textContent?.trim();
-        const destination = row.querySelector('.text-highlight.tracking-tighter')?.textContent?.trim()
-          .replace(/(\w)to/, '$1 to');
+        const destination = row.querySelector('.text-highlight.tracking-tighter')?.textContent?.trim();
         const time = row.querySelector('.minutes')?.textContent?.trim();
         const isLive = row.classList.contains('estimated');
 

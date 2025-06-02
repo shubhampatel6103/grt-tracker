@@ -1,18 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { BusStop } from "@/types/busStop";
+import { busStops } from "@/data/busStops";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [stopNumber, setStopNumber] = useState("1073");
+  const [selectedStop, setSelectedStop] = useState<BusStop>(busStops[0]);
 
-  const handleScrape = async () => {
+  const handleScrape = async (): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`/api/scrape?stop=${stopNumber}`);
+      const response = await fetch(
+        `/api/scrape?stop=${selectedStop.stopNumber}`
+      );
       const result = await response.json();
 
       if (!response.ok) {
@@ -34,13 +38,22 @@ export default function Home() {
         <h1 className="text-3xl font-bold mb-8">GRT Stop Schedule</h1>
 
         <div className="flex gap-4 mb-4">
-          <input
-            type="text"
-            value={stopNumber}
-            onChange={(e) => setStopNumber(e.target.value)}
-            placeholder="Enter stop number"
+          <select
+            value={selectedStop.stopNumber}
+            onChange={(e) => {
+              const stop = busStops.find(
+                (s) => s.stopNumber === e.target.value
+              );
+              if (stop) setSelectedStop(stop);
+            }}
             className="border border-gray-300 bg-black rounded px-4 py-2 flex-1"
-          />
+          >
+            {busStops.map((stop) => (
+              <option key={stop.stopNumber} value={stop.stopNumber}>
+                {stop.stopName} - {stop.direction} ({stop.stopNumber})
+              </option>
+            ))}
+          </select>
           <button
             onClick={handleScrape}
             disabled={loading}
