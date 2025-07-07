@@ -9,6 +9,25 @@ export default function Home() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedStop, setSelectedStop] = useState<BusStop>(busStops[0]);
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+
+  // Get all unique route numbers
+  const allRouteNumbers = Array.from(
+    new Set(busStops.flatMap((stop) => stop.routeNumber))
+  ).sort((a, b) => {
+    // Sort ION (301) first, then numeric routes
+    if (a === "301") return -1;
+    if (b === "301") return 1;
+    return parseInt(a) - parseInt(b);
+  });
+
+  // Group stops by route number
+  const groupedStops = allRouteNumbers.reduce((groups, routeNumber) => {
+    groups[routeNumber] = busStops.filter((stop) =>
+      stop.routeNumber.includes(routeNumber)
+    );
+    return groups;
+  }, {} as Record<string, BusStop[]>);
 
   const handleScrape = async (): Promise<void> => {
     try {
@@ -24,6 +43,7 @@ export default function Home() {
       }
 
       setData(result);
+      setLastFetchTime(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch data");
       console.error(err);
@@ -50,10 +70,14 @@ export default function Home() {
             }}
             className="border border-gray-300 bg-black rounded px-3 py-2 text-sm sm:text-base w-full"
           >
-            {busStops.map((stop) => (
-              <option key={stop.stopNumber} value={stop.stopNumber}>
-                {stop.stopName} - to {stop.direction}
-              </option>
+            {allRouteNumbers.map((routeNumber) => (
+              <optgroup key={routeNumber} label={`Route ${routeNumber}`}>
+                {groupedStops[routeNumber].map((stop) => (
+                  <option key={stop.stopNumber} value={stop.stopNumber}>
+                    {stop.stopName} - {stop.direction}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <button
@@ -73,6 +97,16 @@ export default function Home() {
 
         {data && (
           <div className="mt-6 sm:mt-8">
+            <div className="mb-4 p-4 rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                {lastFetchTime && (
+                  <div className="text-sm text-gray-200">
+                    Last updated: {lastFetchTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">
               Schedule Data:
             </h2>
