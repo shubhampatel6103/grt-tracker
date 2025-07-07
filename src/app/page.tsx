@@ -8,7 +8,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedStop, setSelectedStop] = useState<BusStop>(busStops[0]);
+  const [selectedStop, setSelectedStop] = useState<BusStop | null>(null);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
 
   // Get all unique route numbers
@@ -34,7 +34,7 @@ export default function Home() {
       setLoading(true);
       setError(null);
       const response = await fetch(
-        `/api/scrape?stop=${selectedStop.stopNumber}`
+        `/api/scrape?stop=${selectedStop?.stopNumber}`
       );
       const result = await response.json();
 
@@ -61,15 +61,18 @@ export default function Home() {
 
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
           <select
-            value={selectedStop.stopNumber}
+            value={selectedStop ? selectedStop.stopNumber : ""}
             onChange={(e) => {
               const stop = busStops.find(
                 (s) => s.stopNumber === e.target.value
               );
-              if (stop) setSelectedStop(stop);
+              setSelectedStop(stop || null);
             }}
             className="border border-gray-300 bg-black rounded px-3 py-2 text-sm sm:text-base w-full"
           >
+            <option value="" disabled>
+              Select a stop
+            </option>
             {allRouteNumbers.map((routeNumber) => (
               <optgroup key={routeNumber} label={`Route ${routeNumber}`}>
                 {groupedStops[routeNumber].map((stop) => (
@@ -82,7 +85,7 @@ export default function Home() {
           </select>
           <button
             onClick={handleScrape}
-            disabled={loading}
+            disabled={loading || !selectedStop}
             className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm sm:text-base whitespace-nowrap"
           >
             {loading ? "Loading..." : "Fetch Schedule"}
@@ -101,7 +104,11 @@ export default function Home() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 {lastFetchTime && (
                   <div className="text-sm text-gray-200">
-                    Last updated: {lastFetchTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    Last updated:{" "}
+                    {lastFetchTime.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </div>
                 )}
               </div>
@@ -126,19 +133,27 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-300">
-                  {data.map((item: any, index: number) => (
-                    <tr key={index}>
-                      <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap">
-                        {item.route}
-                      </td>
-                      <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap">
-                        {item.time}
-                      </td>
-                      <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap">
-                        {item.isLive ? "✓" : ""}
-                      </td>
-                    </tr>
-                  ))}
+                  {data
+                    .filter((item: any) => {
+                      if (!item.time) return false;
+                      const t = item.time.trim();
+                      return (
+                        t === "Now" || t.endsWith("min") || t.endsWith("mins")
+                      );
+                    })
+                    .map((item: any, index: number) => (
+                      <tr key={index}>
+                        <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap">
+                          {item.route}
+                        </td>
+                        <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap">
+                          {item.time}
+                        </td>
+                        <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap">
+                          {item.isLive ? "✓" : ""}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
