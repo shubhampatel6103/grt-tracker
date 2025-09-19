@@ -10,6 +10,10 @@
   },
   "dependencies": {
     "@sparticuz/chromium": "^133.0.0",
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.2",
+    "mogodb": "^0.0.1-security",
+    "mongodb": "^6.19.0",
     "next": "15.1.8",
     "puppeteer-core": "^24.9.0",
     "react": "^19.0.0",
@@ -17,6 +21,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
