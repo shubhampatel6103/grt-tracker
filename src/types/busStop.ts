@@ -17,4 +17,13 @@ export interface BusStopData {
   Longitude: number;
   Latitude: number;
   Municipality?: string;
+}
+
+export interface FavoriteBusStop {
+  _id?: string;
+  userId: string;
+  stopId: number;
+  customName: string;
+  createdAt: Date;
+  updatedAt: Date;
 } 

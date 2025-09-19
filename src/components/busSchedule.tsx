@@ -1,56 +1,88 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BusStop } from "@/types/busStop";
-import { busStops } from "@/data/busStops";
+import { BusStop, FavoriteBusStop } from "@/types/busStop";
 import { busStopCache } from "@/lib/services/busStopCache";
 
 interface BusScheduleProps {
   selectedStopId?: number | null;
+  user?: any;
 }
 
-export default function BusSchedule({ selectedStopId }: BusScheduleProps) {
+export default function BusSchedule({
+  selectedStopId,
+  user,
+}: BusScheduleProps) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedStop, setSelectedStop] = useState<BusStop | null>(null);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
+  const [allBusStops, setAllBusStops] = useState<any[]>([]);
 
-  // Get all unique route numbers
-  const allRouteNumbers = Array.from(
-    new Set(busStops.flatMap((stop) => stop.routeNumber))
-  ).sort((a, b) => {
-    // Sort ION (301) first, then numeric routes
-    if (a === "301") return -1;
-    if (b === "301") return 1;
-    return parseInt(a) - parseInt(b);
-  });
+  // No longer need to group all stops since we're only showing favorites
+  // Keep this for backward compatibility but not used in rendering
 
-  // Group stops by route number
-  const groupedStops = allRouteNumbers.reduce((groups, routeNumber) => {
-    groups[routeNumber] = busStops.filter((stop) =>
-      stop.routeNumber.includes(routeNumber)
-    );
-    return groups;
-  }, {} as Record<string, BusStop[]>);
+  // Fetch favorites and all bus stops on component mount
+  useEffect(() => {
+    if (user?._id) {
+      fetchFavorites();
+      fetchAllBusStops();
+    }
+  }, [user]);
 
   // Effect to handle selectedStopId from URL or bus stops page
   useEffect(() => {
     if (selectedStopId) {
-      // Find the stop in the existing busStops data
-      const stop = busStops.find(
-        (s) => s.stopNumber === selectedStopId.toString()
+      // Try to find the stop in favorites first
+      const favoriteStop = favorites.find(
+        (fav) => fav.stopId === selectedStopId
       );
-      if (stop) {
-        setSelectedStop(stop);
-        // Automatically fetch schedule data
-        handleScrapeWithStop(stop);
-      } else {
-        // If not found in local data, try to fetch from API
-        fetchStopFromAPI(selectedStopId);
+      if (favoriteStop) {
+        const stopData = allBusStops.find(
+          (s) => s.StopID === favoriteStop.stopId
+        );
+        if (stopData) {
+          const mockStop: BusStop = {
+            stopNumber: stopData.StopID.toString(),
+            stopName: favoriteStop.customName,
+            direction: `${stopData.Street || "Unknown"} & ${
+              stopData.CrossStreet || "Unknown"
+            }`,
+            routeNumber: [], // We don't have route info in the new data
+          };
+          setSelectedStop(mockStop);
+          handleScrapeWithStop(mockStop);
+          return;
+        }
       }
+
+      // If not found in favorites, try to find in all bus stops data
+      fetchStopFromAPI(selectedStopId);
     }
-  }, [selectedStopId]);
+  }, [selectedStopId, favorites, allBusStops]);
+
+  const fetchFavorites = async () => {
+    try {
+      const response = await fetch(`/api/favorites?userId=${user._id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFavorites(data);
+      }
+    } catch (err) {
+      console.error("Error fetching favorites:", err);
+    }
+  };
+
+  const fetchAllBusStops = async () => {
+    try {
+      const data = await busStopCache.getBusStops();
+      setAllBusStops(data);
+    } catch (err) {
+      console.error("Error fetching all bus stops:", err);
+    }
+  };
 
   const fetchStopFromAPI = async (stopId: number) => {
     try {
@@ -123,25 +155,50 @@ export default function BusSchedule({ selectedStopId }: BusScheduleProps) {
           <select
             value={selectedStop ? selectedStop.stopNumber : ""}
             onChange={(e) => {
-              const stop = busStops.find(
-                (s) => s.stopNumber === e.target.value
+              const stopId = parseInt(e.target.value);
+              const favoriteStop = favorites.find(
+                (fav) => fav.stopId === stopId
               );
-              setSelectedStop(stop || null);
+              if (favoriteStop) {
+                const stopData = allBusStops.find(
+                  (s) => s.StopID === favoriteStop.stopId
+                );
+                if (stopData) {
+                  const mockStop: BusStop = {
+                    stopNumber: stopData.StopID.toString(),
+                    stopName: favoriteStop.customName,
+                    direction: `${stopData.Street || "Unknown"} & ${
+                      stopData.CrossStreet || "Unknown"
+                    }`,
+                    routeNumber: [],
+                  };
+                  setSelectedStop(mockStop);
+                }
+              }
             }}
             className="border border-gray-600 bg-gray-800 text-white rounded px-3 py-2.5 sm:py-2 text-sm sm:text-base w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="" disabled>
-              Select a stop
+              {favorites.length > 0
+                ? "Select a favorite stop"
+                : "No favorite stops - add some from Bus Stops tab"}
             </option>
-            {allRouteNumbers.map((routeNumber) => (
-              <optgroup key={routeNumber} label={`Route ${routeNumber}`}>
-                {groupedStops[routeNumber].map((stop) => (
-                  <option key={stop.stopNumber} value={stop.stopNumber}>
-                    {stop.stopName} - {stop.direction}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
+            {/* Only show favorite stops */}
+            {favorites.map((favorite) => {
+              const stopData = allBusStops.find(
+                (s) => s.StopID === favorite.stopId
+              );
+              if (!stopData) return null;
+              return (
+                <option
+                  key={favorite.stopId}
+                  value={favorite.stopId.toString()}
+                >
+                  {favorite.customName} - {stopData.Street} &{" "}
+                  {stopData.CrossStreet}
+                </option>
+              );
+            })}
           </select>
           <button
             onClick={handleScrape}

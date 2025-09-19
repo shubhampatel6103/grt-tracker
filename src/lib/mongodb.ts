@@ -58,5 +58,6 @@ export async function getCollections(): Promise<DatabaseCollections> {
   return {
     users: db.collection('users'),
     busStops: db.collection('busStops'),
+    favoriteBusStops: db.collection('favoriteBusStops'),
   };
 }

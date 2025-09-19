@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { BusStopData } from "@/types/busStop";
+import { BusStopData, FavoriteBusStop } from "@/types/busStop";
 import { busStopCache } from "@/lib/services/busStopCache";
+import FavoriteModal from "./favoriteModal";
 
 interface BusStopsPageProps {
   user: any;
@@ -22,13 +23,32 @@ export default function BusStopsPage({
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedStop, setSelectedStop] = useState<BusStopData | null>(null);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
+  const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
+  const [favoriteModal, setFavoriteModal] = useState<{
+    isOpen: boolean;
+    stop: BusStopData | null;
+    isUnfavorite: boolean;
+  }>({ isOpen: false, stop: null, isUnfavorite: false });
   const router = useRouter();
 
   const itemsPerPage = isSmallScreen ? 10 : 20;
 
   useEffect(() => {
     fetchBusStops();
+    fetchFavorites();
   }, []);
+
+  const fetchFavorites = async () => {
+    try {
+      const response = await fetch(`/api/favorites?userId=${user._id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFavorites(data);
+      }
+    } catch (err) {
+      console.error("Error fetching favorites:", err);
+    }
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -93,6 +113,66 @@ export default function BusStopsPage({
     }
   };
 
+  const isStopFavorited = (stopId: number): boolean => {
+    return favorites.some((fav) => fav.stopId === stopId);
+  };
+
+  const handleFavoriteClick = (stop: BusStopData) => {
+    const isFavorited = isStopFavorited(stop.StopID);
+    setFavoriteModal({
+      isOpen: true,
+      stop,
+      isUnfavorite: isFavorited,
+    });
+  };
+
+  const handleFavoriteConfirm = async (customName: string) => {
+    if (!favoriteModal.stop) return;
+
+    try {
+      if (favoriteModal.isUnfavorite) {
+        // Remove from favorites
+        const response = await fetch(
+          `/api/favorites/${favoriteModal.stop.StopID}?userId=${user._id}`,
+          { method: "DELETE" }
+        );
+
+        if (response.ok) {
+          setFavorites((prev) =>
+            prev.filter((fav) => fav.stopId !== favoriteModal.stop!.StopID)
+          );
+        } else {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to remove favorite");
+        }
+      } else {
+        // Add to favorites
+        const response = await fetch("/api/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user._id,
+            stopId: favoriteModal.stop.StopID,
+            customName,
+          }),
+        });
+
+        if (response.ok) {
+          const newFavorite = await response.json();
+          setFavorites((prev) => [...prev, newFavorite]);
+        } else {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to add favorite");
+        }
+      }
+
+      setFavoriteModal({ isOpen: false, stop: null, isUnfavorite: false });
+    } catch (err) {
+      console.error("Error managing favorite:", err);
+      // You might want to show an error message to the user here
+    }
+  };
+
   const totalPages = Math.ceil(filteredStops.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -148,12 +228,36 @@ export default function BusStopsPage({
                 <div className="text-white font-semibold text-sm">
                   Stop #{stop.StopID}
                 </div>
-                <button
-                  onClick={() => handleStopSelect(stop)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-xs transition-colors"
-                >
-                  Select
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleFavoriteClick(stop)}
+                    className="text-yellow-400 hover:text-yellow-300 transition-colors"
+                    title={
+                      isStopFavorited(stop.StopID)
+                        ? "Remove from favorites"
+                        : "Add to favorites"
+                    }
+                  >
+                    {isStopFavorited(stop.StopID) ? (
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20">
+                        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="w-5 h-5 fill-current text-gray-400"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleStopSelect(stop)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded text-xs transition-colors"
+                  >
+                    Select
+                  </button>
+                </div>
               </div>
               <div className="space-y-1 text-xs text-gray-300">
                 <div>
@@ -192,6 +296,9 @@ export default function BusStopsPage({
                     Municipality
                   </th>
                   <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    Favorite
+                  </th>
+                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
@@ -223,6 +330,33 @@ export default function BusStopsPage({
                     </td>
                     <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-sm text-gray-200">
                       {stop.Municipality || "N/A"}
+                    </td>
+                    <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={() => handleFavoriteClick(stop)}
+                        className="text-yellow-400 hover:text-yellow-300 transition-colors"
+                        title={
+                          isStopFavorited(stop.StopID)
+                            ? "Remove from favorites"
+                            : "Add to favorites"
+                        }
+                      >
+                        {isStopFavorited(stop.StopID) ? (
+                          <svg
+                            className="w-5 h-5 fill-current"
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                          </svg>
+                        ) : (
+                          <svg
+                            className="w-5 h-5 fill-current text-gray-400"
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                          </svg>
+                        )}
+                      </button>
                     </td>
                     <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium">
                       <button
@@ -272,6 +406,20 @@ export default function BusStopsPage({
             </div>
           </div>
         )}
+
+        {/* Favorite Modal */}
+        <FavoriteModal
+          isOpen={favoriteModal.isOpen}
+          onClose={() =>
+            setFavoriteModal({ isOpen: false, stop: null, isUnfavorite: false })
+          }
+          onConfirm={handleFavoriteConfirm}
+          stop={
+            favoriteModal.stop || { StopID: 0, Street: "", CrossStreet: "" }
+          }
+          existingFavorites={favorites}
+          isUnfavorite={favoriteModal.isUnfavorite}
+        />
       </div>
     </div>
   );

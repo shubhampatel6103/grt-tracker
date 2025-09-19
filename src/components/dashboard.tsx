@@ -92,7 +92,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
       {/* Main content */}
       {activeTab === "dashboard" ? (
-        <BusSchedule selectedStopId={selectedStopId} />
+        <BusSchedule selectedStopId={selectedStopId} user={user} />
       ) : (
         <BusStopsPage user={user} onStopSelect={handleStopSelect} />
       )}
