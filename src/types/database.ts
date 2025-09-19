@@ -1,10 +1,10 @@
 import { Collection, Db } from 'mongodb';
 import { User } from './user';
-import { BusStop } from './busStop';
+import { BusStop, BusStopData } from './busStop';
 
 export interface DatabaseCollections {
   users: Collection<User>;
-  busStops: Collection<BusStop>;
+  busStops: Collection<BusStopData>;
 }
 
 export interface Database {
