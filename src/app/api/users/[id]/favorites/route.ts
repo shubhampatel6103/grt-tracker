@@ -3,7 +3,7 @@ import { UserService } from '@/lib/services/userService';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();
@@ -16,11 +16,12 @@ export async function POST(
       );
     }
 
+    const { id } = await params;
     let user;
     if (action === 'add') {
-      user = await UserService.addFavoriteBusStop(params.id, busStopId);
+      user = await UserService.addFavoriteBusStop(id, busStopId);
     } else if (action === 'remove') {
-      user = await UserService.removeFavoriteBusStop(params.id, busStopId);
+      user = await UserService.removeFavoriteBusStop(id, busStopId);
     } else {
       return NextResponse.json(
         { error: 'Invalid action. Use "add" or "remove"' },
