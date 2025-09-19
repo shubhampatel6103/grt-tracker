@@ -2,9 +2,11 @@ import { MongoClient, Db } from 'mongodb';
 import { DatabaseCollections } from '@/types/database';
 
 if (!process.env.MONGODB_URI) {
+  console.error('MONGODB_URI environment variable is not set');
   throw new Error('MONGODB_URI is not set');
 }
 if (!process.env.MONGODB_DB) {
+  console.error('MONGODB_DB environment variable is not set');
   throw new Error('MONGODB_DB is not set');
 }
 

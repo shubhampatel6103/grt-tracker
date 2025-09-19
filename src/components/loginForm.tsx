@@ -35,6 +35,7 @@ export default function LoginForm({
       const result = await response.json();
 
       if (!response.ok) {
+        console.error('Login API error:', result);
         throw new Error(result.error || "Login failed");
       }
 

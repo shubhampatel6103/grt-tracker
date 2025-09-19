@@ -110,17 +110,25 @@ export class UserService {
 
   // Verify user login
   static async verifyLogin(loginData: UserLoginData): Promise<User | null> {
-    const user = await this.getUserByUsername(loginData.username);
-    if (!user) {
-      return null;
-    }
+    try {
+      const user = await this.getUserByUsername(loginData.username);
+      if (!user) {
+        console.log('User not found:', loginData.username);
+        return null;
+      }
 
-    const isPasswordValid = await bcrypt.compare(loginData.password, user.password);
-    if (!isPasswordValid) {
-      return null;
-    }
+      const isPasswordValid = await bcrypt.compare(loginData.password, user.password);
+      if (!isPasswordValid) {
+        console.log('Invalid password for user:', loginData.username);
+        return null;
+      }
 
-    return user;
+      console.log('Login successful for user:', loginData.username);
+      return user;
+    } catch (error) {
+      console.error('Error in verifyLogin:', error);
+      throw error;
+    }
   }
 
   // Get all users (for admin purposes)
