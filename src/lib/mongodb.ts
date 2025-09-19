@@ -11,7 +11,17 @@ if (!process.env.MONGODB_DB) {
 }
 
 const uri = process.env.MONGODB_URI;
-const options = {};
+const options = {
+  // Connection options
+  retryWrites: true,
+  w: 'majority' as const,
+  retryReads: true,
+  // Additional options for better connection stability
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 10000,
+};
 
 let client: MongoClient | undefined;
 let clientPromise: Promise<MongoClient>;
@@ -33,8 +43,14 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 export async function getDb(): Promise<Db> {
-  const connectedClient = await clientPromise;
-  return connectedClient.db(process.env.MONGODB_DB);
+  try {
+    const connectedClient = await clientPromise;
+    return connectedClient.db(process.env.MONGODB_DB);
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    // Re-throw with a more descriptive error
+    throw new Error(`MongoDB connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 export async function getCollections(): Promise<DatabaseCollections> {
