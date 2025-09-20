@@ -3,7 +3,7 @@ import { changeUserPassword } from '@/lib/services/userService';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { currentPassword, newPassword } = await request.json();
@@ -22,7 +22,7 @@ export async function POST(
       );
     }
     
-    const userId = params.id;
+    const userId = (await params).id;
     
     await changeUserPassword(userId, currentPassword, newPassword);
     
