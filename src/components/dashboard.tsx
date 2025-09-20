@@ -8,9 +8,10 @@ import ProfilePage from "./profilePage";
 
 interface DashboardProps {
   user: any;
+  onUserUpdate?: (updatedUser: any) => void;
 }
 
-export default function Dashboard({ user }: DashboardProps) {
+export default function Dashboard({ user, onUserUpdate }: DashboardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<
@@ -107,7 +108,7 @@ export default function Dashboard({ user }: DashboardProps) {
       ) : activeTab === "bus-stops" ? (
         <BusStopsPage user={user} onStopSelect={handleStopSelect} />
       ) : (
-        <ProfilePage user={user} />
+        <ProfilePage user={user} onUserUpdate={onUserUpdate} />
       )}
     </div>
   );

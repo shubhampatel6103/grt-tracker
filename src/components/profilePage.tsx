@@ -8,9 +8,10 @@ import { useNotification } from "@/contexts/notificationContext";
 
 interface ProfilePageProps {
   user: any;
+  onUserUpdate?: (updatedUser: any) => void;
 }
 
-export default function ProfilePage({ user }: ProfilePageProps) {
+export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
   const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
   const [allBusStops, setAllBusStops] = useState<BusStopData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +24,17 @@ export default function ProfilePage({ user }: ProfilePageProps) {
     confirmPassword: "",
   });
   const [passwordLoading, setPasswordLoading] = useState(false);
+
+  // Helper function to clamp search radius to valid range
+  const clampSearchRadius = (radius: number) => {
+    return Math.max(100, Math.min(1000, radius));
+  };
+
+  // Search radius state
+  const [searchRadius, setSearchRadius] = useState<number>(
+    clampSearchRadius(user.searchRadius || 500)
+  );
+  const [radiusLoading, setRadiusLoading] = useState(false);
 
   // Favorites management state
   const [selectedFavorites, setSelectedFavorites] = useState<Set<number>>(
@@ -37,6 +49,10 @@ export default function ProfilePage({ user }: ProfilePageProps) {
     fetchFavorites();
     fetchAllBusStops();
   }, []);
+
+  useEffect(() => {
+    setSearchRadius(clampSearchRadius(user.searchRadius || 500));
+  }, [user.searchRadius]);
 
   const fetchFavorites = async () => {
     try {
@@ -107,6 +123,38 @@ export default function ProfilePage({ user }: ProfilePageProps) {
       );
     } finally {
       setPasswordLoading(false);
+    }
+  };
+
+  const handleSearchRadiusUpdate = async () => {
+    try {
+      setRadiusLoading(true);
+
+      const response = await fetch(`/api/users/${user._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          searchRadius: searchRadius,
+        }),
+      });
+
+      if (response.ok) {
+        showSuccess("Search radius updated successfully");
+        // Update the user object with new search radius
+        const updatedUser = { ...user, searchRadius: searchRadius };
+        if (onUserUpdate) {
+          onUserUpdate(updatedUser);
+        }
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update search radius");
+      }
+    } catch (err) {
+      showError(
+        err instanceof Error ? err.message : "Failed to update search radius"
+      );
+    } finally {
+      setRadiusLoading(false);
     }
   };
 
@@ -324,6 +372,38 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                 <div className="px-3 py-2 bg-gray-700 text-gray-200 rounded-lg text-sm">
                   {favorites.length} stop{favorites.length === 1 ? "" : "s"}
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Nearby Search Radius: {searchRadius}m
+                </label>
+                <div className="space-y-3">
+                  <div className="relative">
+                    <input
+                      type="range"
+                      value={searchRadius}
+                      onChange={(e) => setSearchRadius(Number(e.target.value))}
+                      min="100"
+                      max="1000"
+                      step="50"
+                      className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>100m</span>
+                      <span>1000m</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleSearchRadiusUpdate}
+                    disabled={radiusLoading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 text-xs transition-colors"
+                  >
+                    {radiusLoading ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Distance to search for nearby favorite stops
+                </p>
               </div>
             </div>
           </div>

@@ -4,6 +4,11 @@ import { useState, useEffect } from "react";
 import { BusStop, FavoriteBusStop } from "@/types/busStop";
 import { busStopCache } from "@/lib/services/busStopCache";
 import { useNotification } from "@/contexts/notificationContext";
+import {
+  getCurrentLocation,
+  calculateDistance,
+  extractCoordinates,
+} from "@/lib/locationUtils";
 
 interface BusScheduleProps {
   selectedStopId?: number | null;
@@ -20,6 +25,8 @@ export default function BusSchedule({
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
   const [allBusStops, setAllBusStops] = useState<any[]>([]);
+  const [nearbyFavorites, setNearbyFavorites] = useState<FavoriteBusStop[]>([]);
+  const [locationLoading, setLocationLoading] = useState(false);
   const { showError } = useNotification();
 
   // Fetch favorites and all bus stops on component mount
@@ -79,6 +86,72 @@ export default function BusSchedule({
       setAllBusStops(data);
     } catch (err) {
       console.error("Error fetching all bus stops:", err);
+    }
+  };
+
+  const findNearbyFavorites = async () => {
+    try {
+      setLocationLoading(true);
+
+      // Get current location
+      const userLocation = await getCurrentLocation();
+
+      // Get user's search radius (default to 500m if not set)
+      const searchRadius = user?.searchRadius || 500;
+      console.log(`User's search radius: ${searchRadius} meters`);
+
+      // Filter favorites that are within the search radius
+      const nearby = favorites.filter((favorite) => {
+        const busStop = allBusStops.find(
+          (stop) => stop.StopID === favorite.stopId
+        );
+        if (!busStop) {
+          return false;
+        }
+
+        const coordinates = extractCoordinates(busStop);
+        if (!coordinates) {
+          return false;
+        }
+
+        const distance = calculateDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          coordinates.latitude,
+          coordinates.longitude
+        );
+
+        return distance <= searchRadius;
+      });
+
+      // Sort by distance (closest first)
+      const sortedNearby = nearby
+        .map((favorite) => {
+          const busStop = allBusStops.find(
+            (stop) => stop.StopID === favorite.stopId
+          );
+          const distance = busStop
+            ? (() => {
+                const coords = extractCoordinates(busStop);
+                return coords
+                  ? calculateDistance(
+                      userLocation.latitude,
+                      userLocation.longitude,
+                      coords.latitude,
+                      coords.longitude
+                    )
+                  : Infinity;
+              })()
+            : Infinity;
+          return { ...favorite, distance };
+        })
+        .sort((a, b) => a.distance - b.distance);
+
+      setNearbyFavorites(sortedNearby);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to get location");
+    } finally {
+      setLocationLoading(false);
     }
   };
 
@@ -203,6 +276,85 @@ export default function BusSchedule({
           >
             {loading ? "Loading..." : "Fetch Schedule"}
           </button>
+        </div>
+
+        {/* Nearby Favorites Section */}
+        <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <h2 className="text-lg font-semibold text-white">
+              Nearby Favorite Stops
+            </h2>
+            <button
+              onClick={findNearbyFavorites}
+              disabled={locationLoading || favorites.length === 0}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm transition-colors"
+            >
+              {locationLoading ? "Finding..." : "Find Nearby Stops"}
+            </button>
+          </div>
+
+          {nearbyFavorites.length > 0 ? (
+            <div className="space-y-2">
+              <div className="text-sm text-gray-400 mb-3">
+                Found {nearbyFavorites.length} favorite stop
+                {nearbyFavorites.length === 1 ? "" : "s"} within{" "}
+                {user?.searchRadius || 500}m
+              </div>
+              {nearbyFavorites.map((favorite) => {
+                const busStop = allBusStops.find(
+                  (stop) => stop.StopID === favorite.stopId
+                );
+                return (
+                  <div
+                    key={favorite.stopId}
+                    className="flex items-center justify-between p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (busStop) {
+                        const mockStop: BusStop = {
+                          stopNumber: busStop.StopID.toString(),
+                          stopName: favorite.customName,
+                          direction: `${busStop.Street || "Unknown"} & ${
+                            busStop.CrossStreet || "Unknown"
+                          }`,
+                          routeNumber: [],
+                        };
+                        setSelectedStop(mockStop);
+                      }
+                    }}
+                  >
+                    <div>
+                      <h3 className="font-medium text-white">
+                        {favorite.customName}
+                      </h3>
+                      <p className="text-sm text-gray-300">
+                        {busStop
+                          ? `${busStop.Street} & ${busStop.CrossStreet}`
+                          : "Stop info unavailable"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-blue-400 font-medium">
+                        {Math.round((favorite as any).distance)}m away
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        Click to select
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-400">
+              {locationLoading
+                ? "Getting your location..."
+                : favorites.length === 0
+                ? "No favorite stops found. Add some from the Bus Stops tab first."
+                : nearbyFavorites.length === 0 && !locationLoading
+                ? "No favorite stops found within your search radius."
+                : "Click 'Find Nearby Stops' to see favorite stops near your location."}
+            </div>
+          )}
         </div>
 
         {data && (

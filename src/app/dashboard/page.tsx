@@ -20,6 +20,11 @@ export default function DashboardPage() {
     setLoading(false);
   }, [router]);
 
+  const handleUserUpdate = (updatedUser: any) => {
+    setUser(updatedUser);
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -32,5 +37,5 @@ export default function DashboardPage() {
     return null;
   }
 
-  return <Dashboard user={user} />;
+  return <Dashboard user={user} onUserUpdate={handleUserUpdate} />;
 }
