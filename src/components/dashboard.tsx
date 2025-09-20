@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BusSchedule from "./busSchedule";
 import BusStopsPage from "./busStopsPage";
+import ProfilePage from "./profilePage";
 
 interface DashboardProps {
   user: any;
@@ -12,9 +13,9 @@ interface DashboardProps {
 export default function Dashboard({ user }: DashboardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "bus-stops">(
-    "dashboard"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "dashboard" | "bus-stops" | "profile"
+  >("dashboard");
   const [selectedStopId, setSelectedStopId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -86,6 +87,16 @@ export default function Dashboard({ user }: DashboardProps) {
             >
               Bus Stops
             </button>
+            <button
+              onClick={() => setActiveTab("profile")}
+              className={`py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap transition-colors ${
+                activeTab === "profile"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500"
+              }`}
+            >
+              Profile
+            </button>
           </nav>
         </div>
       </div>
@@ -93,8 +104,10 @@ export default function Dashboard({ user }: DashboardProps) {
       {/* Main content */}
       {activeTab === "dashboard" ? (
         <BusSchedule selectedStopId={selectedStopId} user={user} />
-      ) : (
+      ) : activeTab === "bus-stops" ? (
         <BusStopsPage user={user} onStopSelect={handleStopSelect} />
+      ) : (
+        <ProfilePage user={user} />
       )}
     </div>
   );

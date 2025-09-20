@@ -131,9 +131,56 @@ export class UserService {
     }
   }
 
+  // Change user password
+  static async changeUserPassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const users = await this.getUsersCollection();
+    
+    // First, get the user to verify current password
+    const user = await users.findOne({ _id: new ObjectId(userId) });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      throw new Error('Current password is incorrect');
+    }
+
+    // Hash the new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update the password
+    const result = await users.updateOne(
+      { _id: new ObjectId(userId) },
+      { 
+        $set: { 
+          password: hashedNewPassword,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    if (result.modifiedCount === 0) {
+      throw new Error('Failed to update password');
+    }
+  }
+
   // Get all users (for admin purposes)
   static async getAllUsers(): Promise<User[]> {
     const users = await this.getUsersCollection();
     return await users.find({}).toArray();
   }
 }
+
+// Export individual functions for convenience
+export const createUser = UserService.createUser.bind(UserService);
+export const getUserById = UserService.getUserById.bind(UserService);
+export const getUserByUsername = UserService.getUserByUsername.bind(UserService);
+export const updateUser = UserService.updateUser.bind(UserService);
+export const deleteUser = UserService.deleteUser.bind(UserService);
+export const addFavoriteBusStop = UserService.addFavoriteBusStop.bind(UserService);
+export const removeFavoriteBusStop = UserService.removeFavoriteBusStop.bind(UserService);
+export const verifyLogin = UserService.verifyLogin.bind(UserService);
+export const changeUserPassword = UserService.changeUserPassword.bind(UserService);
+export const getAllUsers = UserService.getAllUsers.bind(UserService);

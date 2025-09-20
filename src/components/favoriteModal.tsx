@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { FavoriteBusStop } from "@/types/busStop";
+import { useNotification } from "@/contexts/notificationContext";
 
 interface FavoriteModalProps {
   isOpen: boolean;
@@ -25,7 +26,7 @@ export default function FavoriteModal({
   isUnfavorite = false,
 }: FavoriteModalProps) {
   const [customName, setCustomName] = useState("");
-  const [error, setError] = useState("");
+  const { showError } = useNotification();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +37,7 @@ export default function FavoriteModal({
     }
 
     if (!customName.trim()) {
-      setError("Custom name is required");
+      showError("Custom name is required");
       return;
     }
 
@@ -46,17 +47,15 @@ export default function FavoriteModal({
     );
 
     if (nameExists) {
-      setError("This name is already used for another favorite");
+      showError("This name is already used for another favorite");
       return;
     }
 
-    setError("");
     onConfirm(customName.trim());
   };
 
   const handleClose = () => {
     setCustomName("");
-    setError("");
     onClose();
   };
 
@@ -95,7 +94,6 @@ export default function FavoriteModal({
               className="w-full px-3 py-2 border border-gray-600 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               maxLength={50}
             />
-            {error && <p className="text-red-400 text-sm mt-1">{error}</p>}
           </form>
         )}
 

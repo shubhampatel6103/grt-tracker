@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await UserService.verifyLogin({ username, password });
+    const user = await UserService.verifyLogin({ username: username.toLowerCase().trim(), password });
     
     if (!user) {
       return NextResponse.json(

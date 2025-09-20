@@ -1,11 +1,17 @@
 import { getCollections } from '../mongodb';
 import { FavoriteBusStop } from '@/types/busStop';
+import { ObjectId } from 'mongodb';
 
 export async function getUserFavorites(userId: string): Promise<FavoriteBusStop[]> {
   try {
     const { favoriteBusStops } = await getCollections();
     const favorites = await favoriteBusStops.find({ userId }).toArray();
-    return favorites as FavoriteBusStop[];
+    
+    // Ensure _id is converted to string format for consistent handling
+    return favorites.map(fav => ({
+      ...fav,
+      _id: fav._id.toString()
+    })) as FavoriteBusStop[];
   } catch (error) {
     console.error('Error fetching user favorites:', error);
     throw new Error('Failed to fetch favorites');
@@ -94,5 +100,67 @@ export async function isStopFavorited(userId: string, stopId: number): Promise<b
   } catch (error) {
     console.error('Error checking if stop is favorited:', error);
     return false;
+  }
+}
+
+export async function updateFavoriteById(favoriteId: string, customName: string): Promise<FavoriteBusStop | null> {
+  try {
+    const { favoriteBusStops } = await getCollections();
+    
+    // Validate ObjectId format
+    if (!ObjectId.isValid(favoriteId)) {
+      console.error('Invalid ObjectId format:', favoriteId);
+      return null;
+    }
+    
+    // First get the current favorite to check user and validate uniqueness
+    const currentFavorite = await favoriteBusStops.findOne({ _id: new ObjectId(favoriteId) } as any);
+    if (!currentFavorite) {
+      console.error('Favorite not found with ID:', favoriteId);
+      return null;
+    }
+    
+    // Check if new name is unique for this user (excluding the current favorite)
+    const nameExists = await favoriteBusStops.findOne({ 
+      userId: currentFavorite.userId, 
+      customName,
+      _id: { $ne: new ObjectId(favoriteId) }
+    } as any);
+    if (nameExists) {
+      throw new Error('Custom name already exists');
+    }
+    
+    const result = await favoriteBusStops.findOneAndUpdate(
+      { _id: new ObjectId(favoriteId) } as any,
+      { $set: { customName, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+    
+    if (!result) {
+      console.error('Update operation failed for favorite ID:', favoriteId);
+      return null;
+    }
+    
+    return result as FavoriteBusStop;
+  } catch (error) {
+    console.error('Error updating favorite by ID:', error);
+    throw error;
+  }
+}
+
+export async function removeFavoriteById(favoriteId: string, userId: string): Promise<boolean> {
+  try {
+    const { favoriteBusStops } = await getCollections();
+    
+    // Ensure the favorite belongs to the user before deleting
+    const result = await favoriteBusStops.deleteOne({ 
+      _id: new ObjectId(favoriteId),
+      userId
+    } as any);
+    
+    return result.deletedCount > 0;
+  } catch (error) {
+    console.error('Error removing favorite by ID:', error);
+    throw error;
   }
 }

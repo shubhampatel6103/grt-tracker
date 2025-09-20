@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { BusStopData, FavoriteBusStop } from "@/types/busStop";
 import { busStopCache } from "@/lib/services/busStopCache";
 import FavoriteModal from "./favoriteModal";
+import ConfirmDeleteModal from "./confirmDeleteModal";
+import { useNotification } from "@/contexts/notificationContext";
 
 interface BusStopsPageProps {
   user: any;
@@ -18,17 +20,22 @@ export default function BusStopsPage({
   const [busStops, setBusStops] = useState<BusStopData[]>([]);
   const [filteredStops, setFilteredStops] = useState<BusStopData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedStop, setSelectedStop] = useState<BusStopData | null>(null);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
+  const { showError } = useNotification();
   const [favoriteModal, setFavoriteModal] = useState<{
     isOpen: boolean;
     stop: BusStopData | null;
     isUnfavorite: boolean;
   }>({ isOpen: false, stop: null, isUnfavorite: false });
+  const [confirmDeleteModal, setConfirmDeleteModal] = useState<{
+    isOpen: boolean;
+    stop: BusStopData | null;
+  }>({ isOpen: false, stop: null });
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const router = useRouter();
 
   const itemsPerPage = isSmallScreen ? 10 : 20;
@@ -84,7 +91,6 @@ export default function BusStopsPage({
   const fetchBusStops = async () => {
     try {
       setLoading(true);
-      setError(null);
 
       // Check if data is already cached
       const wasCached = busStopCache.isCached();
@@ -94,7 +100,7 @@ export default function BusStopsPage({
       setBusStops(data);
       setFilteredStops(data);
     } catch (err) {
-      setError(
+      showError(
         err instanceof Error ? err.message : "Failed to fetch bus stops"
       );
       console.error(err);
@@ -119,57 +125,78 @@ export default function BusStopsPage({
 
   const handleFavoriteClick = (stop: BusStopData) => {
     const isFavorited = isStopFavorited(stop.StopID);
-    setFavoriteModal({
-      isOpen: true,
-      stop,
-      isUnfavorite: isFavorited,
-    });
+    if (isFavorited) {
+      // Show confirm delete modal for removing favorites
+      setConfirmDeleteModal({
+        isOpen: true,
+        stop,
+      });
+    } else {
+      // Show add favorite modal
+      setFavoriteModal({
+        isOpen: true,
+        stop,
+        isUnfavorite: false,
+      });
+    }
   };
 
   const handleFavoriteConfirm = async (customName: string) => {
     if (!favoriteModal.stop) return;
 
     try {
-      if (favoriteModal.isUnfavorite) {
-        // Remove from favorites
-        const response = await fetch(
-          `/api/favorites/${favoriteModal.stop.StopID}?userId=${user._id}`,
-          { method: "DELETE" }
-        );
+      // Add to favorites
+      const response = await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user._id,
+          stopId: favoriteModal.stop.StopID,
+          customName,
+        }),
+      });
 
-        if (response.ok) {
-          setFavorites((prev) =>
-            prev.filter((fav) => fav.stopId !== favoriteModal.stop!.StopID)
-          );
-        } else {
-          const error = await response.json();
-          throw new Error(error.error || "Failed to remove favorite");
-        }
+      if (response.ok) {
+        const newFavorite = await response.json();
+        setFavorites((prev) => [...prev, newFavorite]);
       } else {
-        // Add to favorites
-        const response = await fetch("/api/favorites", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: user._id,
-            stopId: favoriteModal.stop.StopID,
-            customName,
-          }),
-        });
-
-        if (response.ok) {
-          const newFavorite = await response.json();
-          setFavorites((prev) => [...prev, newFavorite]);
-        } else {
-          const error = await response.json();
-          throw new Error(error.error || "Failed to add favorite");
-        }
+        const error = await response.json();
+        throw new Error(error.error || "Failed to add favorite");
       }
 
       setFavoriteModal({ isOpen: false, stop: null, isUnfavorite: false });
     } catch (err) {
-      console.error("Error managing favorite:", err);
+      console.error("Error adding favorite:", err);
       // You might want to show an error message to the user here
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!confirmDeleteModal.stop) return;
+
+    try {
+      setDeleteLoading(true);
+
+      // Remove from favorites
+      const response = await fetch(
+        `/api/favorites/${confirmDeleteModal.stop.StopID}?userId=${user._id}`,
+        { method: "DELETE" }
+      );
+
+      if (response.ok) {
+        setFavorites((prev) =>
+          prev.filter((fav) => fav.stopId !== confirmDeleteModal.stop!.StopID)
+        );
+        setConfirmDeleteModal({ isOpen: false, stop: null });
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to remove favorite");
+      }
+    } catch (err) {
+      console.error("Error removing favorite:", err);
+      // You might want to show an error message to the user here
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -203,12 +230,6 @@ export default function BusStopsPage({
             className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-600 bg-gray-800 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
           />
         </div>
-
-        {error && (
-          <div className="mb-4 p-3 sm:p-4 bg-red-900 border border-red-700 text-red-200 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
 
         {/* Results Count */}
         <div className="mb-3 sm:mb-4 text-xs sm:text-sm text-gray-300 flex items-center gap-2">
@@ -261,12 +282,10 @@ export default function BusStopsPage({
               </div>
               <div className="space-y-1 text-xs text-gray-300">
                 <div>
-                  <span className="font-medium">Street:</span>{" "}
                   {stop.Street || "N/A"}
                 </div>
                 <div>
-                  <span className="font-medium">Cross:</span>{" "}
-                  {stop.CrossStreet || "N/A"}
+                  &#64; {stop.CrossStreet || "N/A"}
                 </div>
                 <div>
                   <span className="font-medium">Area:</span>{" "}
@@ -287,20 +306,15 @@ export default function BusStopsPage({
                     Stop ID
                   </th>
                   <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Street
+                    Location
                   </th>
                   <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Cross Street
                   </th>
                   <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Municipality
                   </th>
-                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Favorite
-                  </th>
-                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                    Action
-                  </th>
+                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"></th>
+                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"></th>
                 </tr>
               </thead>
               <tbody className="bg-gray-800 divide-y divide-gray-700">
@@ -325,7 +339,7 @@ export default function BusStopsPage({
                         className="max-w-xs truncate"
                         title={stop.CrossStreet || "N/A"}
                       >
-                        {stop.CrossStreet || "N/A"}
+                        &#64; {stop.CrossStreet || "N/A"}
                       </div>
                     </td>
                     <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-sm text-gray-200">
@@ -419,6 +433,15 @@ export default function BusStopsPage({
           }
           existingFavorites={favorites}
           isUnfavorite={favoriteModal.isUnfavorite}
+        />
+
+        {/* Confirm Delete Modal */}
+        <ConfirmDeleteModal
+          isOpen={confirmDeleteModal.isOpen}
+          onClose={() => setConfirmDeleteModal({ isOpen: false, stop: null })}
+          onConfirm={handleDeleteConfirm}
+          count={1}
+          loading={deleteLoading}
         />
       </div>
     </div>

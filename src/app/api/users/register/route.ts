@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await UserService.createUser({ username, password });
+    const user = await UserService.createUser({ username: username.toLowerCase().trim(), password });
     
     // Don't return the password
     const { password: _, ...userWithoutPassword } = user;

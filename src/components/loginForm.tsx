@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useNotification } from "@/contexts/notificationContext";
 
 interface LoginFormProps {
   onSwitchToSignup: () => void;
@@ -16,12 +17,11 @@ export default function LoginForm({
     password: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { showError } = useNotification();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     try {
       const response = await fetch("/api/users/login", {
@@ -35,7 +35,7 @@ export default function LoginForm({
       const result = await response.json();
 
       if (!response.ok) {
-        console.error('Login API error:', result);
+        console.error("Login API error:", result);
         throw new Error(result.error || "Login failed");
       }
 
@@ -47,7 +47,7 @@ export default function LoginForm({
         onLoginSuccess();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      showError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }
@@ -106,12 +106,6 @@ export default function LoginForm({
                 placeholder="Enter your password"
               />
             </div>
-
-            {error && (
-              <div className="p-3 bg-red-100 text-red-700 rounded text-sm">
-                {error}
-              </div>
-            )}
 
             <button
               type="submit"

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { BusStop, FavoriteBusStop } from "@/types/busStop";
 import { busStopCache } from "@/lib/services/busStopCache";
+import { useNotification } from "@/contexts/notificationContext";
 
 interface BusScheduleProps {
   selectedStopId?: number | null;
@@ -15,14 +16,11 @@ export default function BusSchedule({
 }: BusScheduleProps) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
   const [selectedStop, setSelectedStop] = useState<BusStop | null>(null);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
   const [allBusStops, setAllBusStops] = useState<any[]>([]);
-
-  // No longer need to group all stops since we're only showing favorites
-  // Keep this for backward compatibility but not used in rendering
+  const { showError } = useNotification();
 
   // Fetch favorites and all bus stops on component mount
   useEffect(() => {
@@ -87,7 +85,6 @@ export default function BusSchedule({
   const fetchStopFromAPI = async (stopId: number) => {
     try {
       setLoading(true);
-      setError(null);
 
       // Use cache to get all stops, then filter locally
       const allStops = await busStopCache.getBusStops();
@@ -106,10 +103,10 @@ export default function BusSchedule({
         setSelectedStop(mockStop);
         handleScrapeWithStop(mockStop);
       } else {
-        setError(`Stop ID ${stopId} not found`);
+        showError(`Stop ID ${stopId} not found`);
       }
     } catch (err) {
-      setError(
+      showError(
         err instanceof Error ? err.message : "Failed to fetch stop data"
       );
     } finally {
@@ -120,7 +117,6 @@ export default function BusSchedule({
   const handleScrapeWithStop = async (stop: BusStop): Promise<void> => {
     try {
       setLoading(true);
-      setError(null);
       const response = await fetch(`/api/scrape?stop=${stop.stopNumber}`);
       const result = await response.json();
 
@@ -131,7 +127,7 @@ export default function BusSchedule({
       setData(result);
       setLastFetchTime(new Date());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch data");
+      showError(err instanceof Error ? err.message : "Failed to fetch data");
       console.error(err);
     } finally {
       setLoading(false);
@@ -208,12 +204,6 @@ export default function BusSchedule({
             {loading ? "Loading..." : "Fetch Schedule"}
           </button>
         </div>
-
-        {error && (
-          <div className="mt-4 p-3 sm:p-4 bg-red-900 border border-red-700 text-red-200 rounded text-sm sm:text-base">
-            {error}
-          </div>
-        )}
 
         {data && (
           <div className="mt-6 sm:mt-8">

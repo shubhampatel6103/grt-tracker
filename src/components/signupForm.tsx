@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useNotification } from "@/contexts/notificationContext";
 
 interface SignupFormProps {
   onSwitchToLogin: () => void;
@@ -17,15 +18,14 @@ export default function SignupForm({
     confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { showError, showSuccess } = useNotification();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
+      showError("Passwords do not match");
       setLoading(false);
       return;
     }
@@ -56,7 +56,7 @@ export default function SignupForm({
         onSignupSuccess();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      showError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -134,12 +134,6 @@ export default function SignupForm({
                 placeholder="Confirm your password"
               />
             </div>
-
-            {error && (
-              <div className="p-3 bg-red-100 text-red-700 rounded text-sm">
-                {error}
-              </div>
-            )}
 
             <button
               type="submit"

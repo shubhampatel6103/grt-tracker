@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { removeFavorite, updateFavoriteName } from '@/lib/services/favoriteService';
 
-export async function DELETE(request: NextRequest, { params }: { params: { stopId: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ stopId: string }> }) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
@@ -12,8 +12,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { stopI
         { status: 400 }
       );
     }
-    
-    const stopId = parseInt(params.stopId);
+
+    const stopId = parseInt((await params).stopId);
     if (isNaN(stopId)) {
       return NextResponse.json(
         { error: 'Invalid stop ID' },
@@ -32,7 +32,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { stopI
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { stopId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ stopId: string }> }) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest, { params }: { params: { stopId: 
       );
     }
     
-    const stopId = parseInt(params.stopId);
+    const stopId = parseInt((await params).stopId);
     if (isNaN(stopId)) {
       return NextResponse.json(
         { error: 'Invalid stop ID' },
