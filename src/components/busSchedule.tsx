@@ -523,8 +523,19 @@ export default function BusSchedule({
     const { latitude: userLat, longitude: userLng } = stop.userLocation;
     const { latitude: stopLat, longitude: stopLng } = coordinates;
 
-    // Google Maps directions URL format
-    return `https://www.google.com/maps/dir/${userLat},${userLng}/${stopLat},${stopLng}/@${stopLat},${stopLng},17z/data=!3m1!4b1!4m2!4m1!3e2`;
+    // Use different URL format for mobile vs desktop
+    const isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      );
+
+    if (isMobile) {
+      // Mobile-friendly format that works better with Google Maps app
+      return `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${stopLat},${stopLng}&travelmode=transit`;
+    } else {
+      // Desktop format
+      return `https://www.google.com/maps/dir/${userLat},${userLng}/${stopLat},${stopLng}/@${stopLat},${stopLng},17z/data=!3m1!4b1!4m2!4m1!3e2`;
+    }
   };
 
   const generateGoogleMapsUrlForFavorite = async (favorite: any) => {
@@ -544,8 +555,19 @@ export default function BusSchedule({
       const { latitude: userLat, longitude: userLng } = userLocation;
       const { latitude: stopLat, longitude: stopLng } = coordinates;
 
-      // Google Maps directions URL format
-      return `https://www.google.com/maps/dir/${userLat},${userLng}/${stopLat},${stopLng}/@${stopLat},${stopLng},17z/data=!3m1!4b1!4m2!4m1!3e2`;
+      // Use different URL format for mobile vs desktop
+      const isMobile =
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        );
+
+      if (isMobile) {
+        // Mobile-friendly format that works better with Google Maps app
+        return `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${stopLat},${stopLng}&travelmode=transit`;
+      } else {
+        // Desktop format
+        return `https://www.google.com/maps/dir/${userLat},${userLng}/${stopLat},${stopLng}/@${stopLat},${stopLng},17z/data=!3m1!4b1!4m2!4m1!3e2`;
+      }
     } catch (error) {
       console.error("Error generating Google Maps URL:", error);
       return "#";
@@ -584,8 +606,21 @@ export default function BusSchedule({
       const { latitude: userLat, longitude: userLng } = userLocation;
       const { latitude: stopLat, longitude: stopLng } = coordinates;
 
-      // Google Maps directions URL format
-      const url = `https://www.google.com/maps/dir/${userLat},${userLng}/${stopLat},${stopLng}/@${stopLat},${stopLng},17z/data=!3m1!4b1!4m2!4m1!3e2`;
+      // Use different URL format for mobile vs desktop
+      const isMobile =
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        );
+
+      let url;
+      if (isMobile) {
+        // Mobile-friendly format that works better with Google Maps app
+        url = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${stopLat},${stopLng}&travelmode=transit`;
+      } else {
+        // Desktop format
+        url = `https://www.google.com/maps/dir/${userLat},${userLng}/${stopLat},${stopLng}/@${stopLat},${stopLng},17z/data=!3m1!4b1!4m2!4m1!3e2`;
+      }
+
       window.open(url, "_blank");
     } catch (error) {
       console.error("Error generating directions:", error);
@@ -1122,11 +1157,7 @@ export default function BusSchedule({
                           <div
                             key={`${stopNumber}-${index}`}
                             className="bg-gray-700 rounded-md p-4 hover:bg-gray-600 transition-colors"
-                            title={
-                              item.destination
-                                ? `Route ${item.route} to ${item.destination}`
-                                : `Route ${item.route}`
-                            }
+                            title={item.destination}
                           >
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-blue-400 font-bold text-lg">
