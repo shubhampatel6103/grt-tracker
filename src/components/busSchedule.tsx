@@ -32,6 +32,7 @@ export default function BusSchedule({
   const [nearbyFavorites, setNearbyFavorites] = useState<FavoriteBusStop[]>([]);
   const [locationLoading, setLocationLoading] = useState(false);
   const [nearbyCollapsed, setNearbyCollapsed] = useState(true);
+  const [lastNearbySearch, setLastNearbySearch] = useState<Date | null>(null);
   const { showError } = useNotification();
 
   // Fetch favorites and all bus stops on component mount
@@ -168,6 +169,8 @@ export default function BusSchedule({
         // Auto-expand if favorites were found
         if (nearbyWithWalkingDistance.length > 0) {
           setNearbyCollapsed(false);
+          // Automatically fetch schedules for all nearby stops
+          await fetchSchedulesForNearbyStops(nearbyWithWalkingDistance);
         }
       } catch (routesError) {
         console.warn(
@@ -214,6 +217,8 @@ export default function BusSchedule({
         // Auto-expand if favorites were found
         if (sortedNearby.length > 0) {
           setNearbyCollapsed(false);
+          // Automatically fetch schedules for all nearby stops
+          await fetchSchedulesForNearbyStops(sortedNearby);
         }
       }
     } catch (err) {
@@ -333,6 +338,35 @@ export default function BusSchedule({
     setLoading(false);
   };
 
+  const fetchSchedulesForNearbyStops = async (nearbyStops: FavoriteBusStop[]) => {
+    if (nearbyStops.length === 0) return;
+    
+    setLoading(true);
+    const stops: BusStop[] = nearbyStops.map(favorite => {
+      const busStop = allBusStops.find(stop => stop.StopID === favorite.stopId);
+      return {
+        stopNumber: busStop?.StopID.toString() || '',
+        stopName: favorite.customName || '',
+        direction: `${busStop?.Street || "Unknown"} & ${busStop?.CrossStreet || "Unknown"}`,
+        routeNumber: [],
+      };
+    }).filter(stop => stop.stopNumber !== '');
+
+    const promises = stops.map(stop => fetchStopSchedule(stop));
+    await Promise.all(promises);
+    setLastFetchTime(new Date());
+    setLastNearbySearch(new Date());
+    setLoading(false);
+  };
+
+  const clearNearbySearch = () => {
+    setNearbyFavorites([]);
+    setScheduleData({});
+    setNearbyCollapsed(true);
+    setLastFetchTime(null);
+    setLastNearbySearch(null);
+  };
+
   return (
     <main className="min-h-screen p-2 sm:p-4 md:p-6 lg:p-8 bg-gray-900">
       <div className="max-w-4xl mx-auto w-full">
@@ -402,26 +436,21 @@ export default function BusSchedule({
         <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
           <div
             className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer p-2 -m-2 rounded transition-colors"
-            onClick={() => setNearbyCollapsed(!nearbyCollapsed)}
+            onClick={() => nearbyFavorites.length > 0 && setNearbyCollapsed(!nearbyCollapsed)}
           >
             <h2 className="text-lg font-semibold text-white">
               Nearby Favorite Stops
             </h2>
             <div className="flex items-center gap-2">
-              {selectedStops.length > 0 && (
+              {nearbyFavorites.length > 0 && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    fetchAllSelectedSchedules();
+                    clearNearbySearch();
                   }}
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm transition-colors"
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
                 >
-                  {loading
-                    ? "Loading..."
-                    : `Get ${selectedStops.length} Schedule${
-                        selectedStops.length > 1 ? "s" : ""
-                      }`}
+                  Clear Results
                 </button>
               )}
               <button
@@ -434,15 +463,17 @@ export default function BusSchedule({
               >
                 {locationLoading ? "Finding..." : "Find Nearby Stops"}
               </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setNearbyCollapsed(!nearbyCollapsed);
-                }}
-                className="text-gray-400 hover:text-white transition-colors ml-2"
-              >
-                {nearbyCollapsed ? "▼" : "▲"}
-              </button>
+              {nearbyFavorites.length > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNearbyCollapsed(!nearbyCollapsed);
+                  }}
+                  className="text-gray-400 hover:text-white transition-colors ml-2"
+                >
+                  {nearbyCollapsed ? "▼" : "▲"}
+                </button>
+              )}
             </div>
           </div>
 
@@ -451,85 +482,41 @@ export default function BusSchedule({
               <div className="text-sm text-gray-400 mb-3">
                 Found {nearbyFavorites.length} favorite stop
                 {nearbyFavorites.length === 1 ? "" : "s"} within{" "}
-                {user?.searchRadius || 500}m
+                {user?.nearbyRadius || 500}m
+                {lastNearbySearch && (
+                  <span className="ml-2">
+                    • Schedules updated: {lastNearbySearch.toLocaleTimeString()}
+                  </span>
+                )}
               </div>
               {nearbyFavorites.map((favorite) => {
                 const busStop = allBusStops.find(
                   (stop) => stop.StopID === favorite.stopId
                 );
-                const mockStop: BusStop = {
-                  stopNumber: busStop?.StopID.toString() || "",
-                  stopName: favorite.customName || "",
-                  direction: `${busStop?.Street || "Unknown"} & ${
-                    busStop?.CrossStreet || "Unknown"
-                  }`,
-                  routeNumber: [],
-                };
-                const isSelected = selectedStops.some(
-                  (s) => s.stopNumber === mockStop.stopNumber
-                );
-
                 return (
                   <div
                     key={favorite.stopId}
-                    className="flex items-center gap-3 p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
+                    className="flex items-center justify-between p-3 bg-gray-700 rounded-lg"
                   >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        if (busStop) {
-                          handleMultipleStopSelection(
-                            mockStop,
-                            e.target.checked
-                          );
-                        }
-                      }}
-                      className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-                    />
-                    <div
-                      className="flex-1 cursor-pointer"
-                      onClick={() => {
-                        if (busStop) {
-                          const currentlySelected = selectedStops.some(
-                            (s) => s.stopNumber === mockStop.stopNumber
-                          );
-                          handleMultipleStopSelection(
-                            mockStop,
-                            !currentlySelected
-                          );
-                        }
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-medium text-white">
-                            {favorite.customName}
-                          </h3>
-                          <p className="text-sm text-gray-300">
-                            {busStop
-                              ? `${busStop.Street} & ${busStop.CrossStreet}`
-                              : "Stop info unavailable"}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm text-blue-400 font-medium">
-                            {Math.round((favorite as any).distance)}m away
-                          </div>
-                          {(favorite as any).walkingDuration && (
-                            <div className="text-xs text-green-400">
-                              {Math.ceil(
-                                (favorite as any).walkingDuration / 60
-                              )}{" "}
-                              min walk
-                            </div>
-                          )}
-                          <div className="text-xs text-gray-400">
-                            Click to {isSelected ? "deselect" : "select"}
-                          </div>
-                        </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-white">
+                        {favorite.customName}
                       </div>
+                      <div className="text-sm text-gray-400">
+                        Stop ID: {favorite.stopId}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-green-400">
+                        {(favorite as any).walkingDuration !== null
+                          ? `${Math.round((favorite as any).distance)}m walk`
+                          : `${Math.round((favorite as any).distance)}m`}
+                      </div>
+                      {(favorite as any).walkingDuration !== null && (
+                        <div className="text-xs text-gray-500">
+                          via walking route
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
