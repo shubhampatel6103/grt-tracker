@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import { BusStop, FavoriteBusStop } from "@/types/busStop";
 import { busStopCache } from "@/lib/services/busStopCache";
 import { useNotification } from "@/contexts/notificationContext";
+import { getCurrentLocation, extractCoordinates } from "@/lib/locationUtils";
 import {
-  getCurrentLocation,
-  extractCoordinates,
-} from "@/lib/locationUtils";
-import { calculateBatchWalkingDistances, calculateHaversineDistance } from "@/lib/services/routesApiService";
+  calculateBatchWalkingDistances,
+  calculateHaversineDistance,
+} from "@/lib/services/routesApiService";
 
 interface BusScheduleProps {
   selectedStopId?: number | null;
@@ -23,7 +23,9 @@ export default function BusSchedule({
   const [data, setData] = useState<any>(null);
   const [selectedStop, setSelectedStop] = useState<BusStop | null>(null);
   const [selectedStops, setSelectedStops] = useState<BusStop[]>([]);
-  const [scheduleData, setScheduleData] = useState<{[stopId: string]: any}>({});
+  const [scheduleData, setScheduleData] = useState<{ [stopId: string]: any }>(
+    {}
+  );
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
   const [allBusStops, setAllBusStops] = useState<any[]>([]);
@@ -117,8 +119,11 @@ export default function BusSchedule({
           return {
             id: favorite.stopId,
             location: coordinates,
-            name: favorite.customName || busStop.StopName || `Stop ${favorite.stopId}`,
-            favorite: favorite
+            name:
+              favorite.customName ||
+              busStop.StopName ||
+              `Stop ${favorite.stopId}`,
+            favorite: favorite,
           };
         })
         .filter((dest): dest is NonNullable<typeof dest> => dest !== null);
@@ -130,7 +135,7 @@ export default function BusSchedule({
 
       // Try to use Google Routes API for walking distances
       try {
-        console.log('Calculating walking distances using Google Routes API...');
+        console.log("Calculating walking distances using Google Routes API...");
         const walkingDistances = await calculateBatchWalkingDistances(
           userLocation,
           destinations,
@@ -138,27 +143,38 @@ export default function BusSchedule({
         );
 
         // Map results back to favorites with distance information
-        const nearbyWithWalkingDistance = walkingDistances.map((result) => {
-          const originalFavorite = destinations.find(d => d.id === result.id)?.favorite;
-          if (!originalFavorite) return null;
-          return {
-            ...originalFavorite,
-            distance: result.distance,
-            walkingDuration: result.duration
-          } as FavoriteBusStop & { distance: number; walkingDuration: number };
-        }).filter((item): item is NonNullable<typeof item> => item !== null);
+        const nearbyWithWalkingDistance = walkingDistances
+          .map((result) => {
+            const originalFavorite = destinations.find(
+              (d) => d.id === result.id
+            )?.favorite;
+            if (!originalFavorite) return null;
+            return {
+              ...originalFavorite,
+              distance: result.distance,
+              walkingDuration: result.duration,
+            } as FavoriteBusStop & {
+              distance: number;
+              walkingDuration: number;
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null);
 
         setNearbyFavorites(nearbyWithWalkingDistance);
-        console.log(`Found ${nearbyWithWalkingDistance.length} favorites within walking distance`);
-        
+        console.log(
+          `Found ${nearbyWithWalkingDistance.length} favorites within walking distance`
+        );
+
         // Auto-expand if favorites were found
         if (nearbyWithWalkingDistance.length > 0) {
           setNearbyCollapsed(false);
         }
-
       } catch (routesError) {
-        console.warn('Google Routes API failed, falling back to Haversine distance:', routesError);
-        
+        console.warn(
+          "Google Routes API failed, falling back to Haversine distance:",
+          routesError
+        );
+
         // Fallback to Haversine distance calculation
         const nearby = destinations.filter((dest) => {
           const distance = calculateHaversineDistance(
@@ -179,23 +195,27 @@ export default function BusSchedule({
               dest.location.latitude,
               dest.location.longitude
             );
-            return { 
-              ...dest.favorite, 
+            return {
+              ...dest.favorite,
               distance,
-              walkingDuration: null // No duration data available with Haversine
-            } as FavoriteBusStop & { distance: number; walkingDuration: number | null };
+              walkingDuration: null, // No duration data available with Haversine
+            } as FavoriteBusStop & {
+              distance: number;
+              walkingDuration: number | null;
+            };
           })
           .sort((a, b) => a.distance - b.distance);
 
         setNearbyFavorites(sortedNearby);
-        console.log(`Found ${sortedNearby.length} favorites within radius using fallback method`);
-        
+        console.log(
+          `Found ${sortedNearby.length} favorites within radius using fallback method`
+        );
+
         // Auto-expand if favorites were found
         if (sortedNearby.length > 0) {
           setNearbyCollapsed(false);
         }
       }
-
     } catch (err) {
       showError(err instanceof Error ? err.message : "Failed to get location");
     } finally {
@@ -263,11 +283,13 @@ export default function BusSchedule({
 
   const handleMultipleStopSelection = (stop: BusStop, isSelected: boolean) => {
     if (isSelected) {
-      setSelectedStops(prev => [...prev, stop]);
+      setSelectedStops((prev) => [...prev, stop]);
       fetchStopSchedule(stop);
     } else {
-      setSelectedStops(prev => prev.filter(s => s.stopNumber !== stop.stopNumber));
-      setScheduleData(prev => {
+      setSelectedStops((prev) =>
+        prev.filter((s) => s.stopNumber !== stop.stopNumber)
+      );
+      setScheduleData((prev) => {
         const newData = { ...prev };
         delete newData[stop.stopNumber];
         return newData;
@@ -285,13 +307,13 @@ export default function BusSchedule({
         throw new Error(result.error || "Failed to fetch data");
       }
 
-      setScheduleData(prev => ({
+      setScheduleData((prev) => ({
         ...prev,
         [stop.stopNumber]: {
-          ...result,
+          data: Array.isArray(result) ? result : result.data || [],
           stopName: stop.stopName,
-          fetchTime: new Date()
-        }
+          fetchTime: new Date(),
+        },
       }));
     } catch (err) {
       showError(err instanceof Error ? err.message : "Failed to fetch data");
@@ -303,9 +325,9 @@ export default function BusSchedule({
 
   const fetchAllSelectedSchedules = async () => {
     if (selectedStops.length === 0) return;
-    
+
     setLoading(true);
-    const promises = selectedStops.map(stop => fetchStopSchedule(stop));
+    const promises = selectedStops.map((stop) => fetchStopSchedule(stop));
     await Promise.all(promises);
     setLastFetchTime(new Date());
     setLoading(false);
@@ -378,7 +400,7 @@ export default function BusSchedule({
 
         {/* Nearby Favorites Section */}
         <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-          <div 
+          <div
             className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer p-2 -m-2 rounded transition-colors"
             onClick={() => setNearbyCollapsed(!nearbyCollapsed)}
           >
@@ -395,7 +417,11 @@ export default function BusSchedule({
                   disabled={loading}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm transition-colors"
                 >
-                  {loading ? "Loading..." : `Get ${selectedStops.length} Schedule${selectedStops.length > 1 ? 's' : ''}`}
+                  {loading
+                    ? "Loading..."
+                    : `Get ${selectedStops.length} Schedule${
+                        selectedStops.length > 1 ? "s" : ""
+                      }`}
                 </button>
               )}
               <button
@@ -432,15 +458,17 @@ export default function BusSchedule({
                   (stop) => stop.StopID === favorite.stopId
                 );
                 const mockStop: BusStop = {
-                  stopNumber: busStop?.StopID.toString() || '',
-                  stopName: favorite.customName || '',
+                  stopNumber: busStop?.StopID.toString() || "",
+                  stopName: favorite.customName || "",
                   direction: `${busStop?.Street || "Unknown"} & ${
                     busStop?.CrossStreet || "Unknown"
                   }`,
                   routeNumber: [],
                 };
-                const isSelected = selectedStops.some(s => s.stopNumber === mockStop.stopNumber);
-                
+                const isSelected = selectedStops.some(
+                  (s) => s.stopNumber === mockStop.stopNumber
+                );
+
                 return (
                   <div
                     key={favorite.stopId}
@@ -452,17 +480,25 @@ export default function BusSchedule({
                       onChange={(e) => {
                         e.stopPropagation();
                         if (busStop) {
-                          handleMultipleStopSelection(mockStop, e.target.checked);
+                          handleMultipleStopSelection(
+                            mockStop,
+                            e.target.checked
+                          );
                         }
                       }}
                       className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
                     />
-                    <div 
+                    <div
                       className="flex-1 cursor-pointer"
                       onClick={() => {
                         if (busStop) {
-                          const currentlySelected = selectedStops.some(s => s.stopNumber === mockStop.stopNumber);
-                          handleMultipleStopSelection(mockStop, !currentlySelected);
+                          const currentlySelected = selectedStops.some(
+                            (s) => s.stopNumber === mockStop.stopNumber
+                          );
+                          handleMultipleStopSelection(
+                            mockStop,
+                            !currentlySelected
+                          );
                         }
                       }}
                     >
@@ -483,11 +519,14 @@ export default function BusSchedule({
                           </div>
                           {(favorite as any).walkingDuration && (
                             <div className="text-xs text-green-400">
-                              {Math.ceil((favorite as any).walkingDuration / 60)} min walk
+                              {Math.ceil(
+                                (favorite as any).walkingDuration / 60
+                              )}{" "}
+                              min walk
                             </div>
                           )}
                           <div className="text-xs text-gray-400">
-                            Click to {isSelected ? 'deselect' : 'select'}
+                            Click to {isSelected ? "deselect" : "select"}
                           </div>
                         </div>
                       </div>
@@ -514,7 +553,8 @@ export default function BusSchedule({
             <div className="mb-4 p-4 rounded-lg bg-gray-800 border border-gray-700">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <h2 className="text-base sm:text-lg md:text-xl font-semibold text-white">
-                  Selected Stops Schedule ({Object.keys(scheduleData).length} stop{Object.keys(scheduleData).length > 1 ? 's' : ''})
+                  Selected Stops Schedule ({Object.keys(scheduleData).length}{" "}
+                  stop{Object.keys(scheduleData).length > 1 ? "s" : ""})
                 </h2>
                 {lastFetchTime && (
                   <div className="text-sm text-gray-300">
@@ -530,41 +570,52 @@ export default function BusSchedule({
 
             {/* Mobile Card View */}
             <div className="block sm:hidden space-y-4">
-              {Object.entries(scheduleData).map(([stopNumber, stopData]: [string, any]) => (
-                <div key={stopNumber} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                  <h3 className="text-white font-semibold text-lg mb-3 border-b border-gray-600 pb-2">
-                    {stopData.stopName}
-                  </h3>
-                  <div className="space-y-2">
-                    {stopData
-                      .filter((item: any) => {
-                        if (!item.time) return false;
-                        const t = item.time.trim();
-                        return t === "Now" || t.endsWith("min") || t.endsWith("mins");
-                      })
-                      .map((item: any, index: number) => (
-                        <div
-                          key={`${stopNumber}-${index}`}
-                          className="bg-gray-700 rounded-lg p-3 border border-gray-600"
-                        >
-                          <div className="flex justify-between items-center">
-                            <div className="text-white font-semibold text-sm">
-                              {item.route}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {item.isLive && (
-                                <span className="text-green-400 text-xs">LIVE</span>
-                              )}
-                              <span className="text-gray-200 text-sm">
-                                {item.time}
-                              </span>
+              {Object.entries(scheduleData).map(
+                ([stopNumber, stopData]: [string, any]) => (
+                  <div
+                    key={stopNumber}
+                    className="bg-gray-800 rounded-lg p-4 border border-gray-700"
+                  >
+                    <h3 className="text-white font-semibold text-lg mb-3 border-b border-gray-600 pb-2">
+                      {stopData.stopName}
+                    </h3>
+                    <div className="space-y-2">
+                      {(stopData.data || [])
+                        .filter((item: any) => {
+                          if (!item.time) return false;
+                          const t = item.time.trim();
+                          return (
+                            t === "Now" ||
+                            t.endsWith("min") ||
+                            t.endsWith("mins")
+                          );
+                        })
+                        .map((item: any, index: number) => (
+                          <div
+                            key={`${stopNumber}-${index}`}
+                            className="bg-gray-700 rounded-lg p-3 border border-gray-600"
+                          >
+                            <div className="flex justify-between items-center">
+                              <div className="text-white font-semibold text-sm">
+                                {item.route}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {item.isLive && (
+                                  <span className="text-green-400 text-xs">
+                                    LIVE
+                                  </span>
+                                )}
+                                <span className="text-gray-200 text-sm">
+                                  {item.time}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              )}
             </div>
 
             {/* Desktop Table View */}
@@ -587,32 +638,37 @@ export default function BusSchedule({
                   </tr>
                 </thead>
                 <tbody className="bg-gray-800 divide-y divide-gray-700">
-                  {Object.entries(scheduleData).flatMap(([stopNumber, stopData]: [string, any]) =>
-                    stopData
-                      .filter((item: any) => {
-                        if (!item.time) return false;
-                        const t = item.time.trim();
-                        return t === "Now" || t.endsWith("min") || t.endsWith("mins");
-                      })
-                      .map((item: any, index: number) => (
-                        <tr
-                          key={`${stopNumber}-${index}`}
-                          className="hover:bg-gray-700 transition-colors"
-                        >
-                          <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-blue-400 font-medium">
-                            {stopData.stopName}
-                          </td>
-                          <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-white font-medium">
-                            {item.route}
-                          </td>
-                          <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-gray-200">
-                            {item.time}
-                          </td>
-                          <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-green-400">
-                            {item.isLive ? "✓" : ""}
-                          </td>
-                        </tr>
-                      ))
+                  {Object.entries(scheduleData).flatMap(
+                    ([stopNumber, stopData]: [string, any]) =>
+                      (stopData.data || [])
+                        .filter((item: any) => {
+                          if (!item.time) return false;
+                          const t = item.time.trim();
+                          return (
+                            t === "Now" ||
+                            t.endsWith("min") ||
+                            t.endsWith("mins")
+                          );
+                        })
+                        .map((item: any, index: number) => (
+                          <tr
+                            key={`${stopNumber}-${index}`}
+                            className="hover:bg-gray-700 transition-colors"
+                          >
+                            <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-blue-400 font-medium">
+                              {stopData.stopName}
+                            </td>
+                            <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-white font-medium">
+                              {item.route}
+                            </td>
+                            <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-gray-200">
+                              {item.time}
+                            </td>
+                            <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-green-400">
+                              {item.isLive ? "✓" : ""}
+                            </td>
+                          </tr>
+                        ))
                   )}
                 </tbody>
               </table>
