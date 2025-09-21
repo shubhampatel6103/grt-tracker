@@ -25,7 +25,17 @@ export default function BusSchedule({
   const [scheduleData, setScheduleData] = useState<{ [stopId: string]: any }>(
     {}
   );
+  const [favoriteScheduleData, setFavoriteScheduleData] = useState<{
+    [stopId: string]: any;
+  }>({});
+  const [allStopsScheduleData, setAllStopsScheduleData] = useState<{
+    [stopId: string]: any;
+  }>({});
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [lastFavoriteFetchTime, setLastFavoriteFetchTime] =
+    useState<Date | null>(null);
+  const [lastAllStopsFetchTime, setLastAllStopsFetchTime] =
+    useState<Date | null>(null);
   const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
   const [allBusStops, setAllBusStops] = useState<any[]>([]);
   const [nearbyFavorites, setNearbyFavorites] = useState<FavoriteBusStop[]>([]);
@@ -279,7 +289,19 @@ export default function BusSchedule({
       }
 
       setData(result);
+      // Also add to favorites schedule data for the new system
+      setFavoriteScheduleData((prev) => ({
+        ...prev,
+        [stop.stopNumber]: {
+          data: Array.isArray(result) ? result : result.data || [],
+          stopName: stop.stopName,
+          fetchTime: new Date(),
+        },
+      }));
       setLastFetchTime(new Date());
+      setLastFavoriteFetchTime(new Date());
+      // Switch to favorites tab to show the result
+      setActiveTab("favorites");
     } catch (err) {
       showError(err instanceof Error ? err.message : "Failed to fetch data");
       console.error(err);
@@ -294,6 +316,58 @@ export default function BusSchedule({
     }
   };
 
+  const fetchStopScheduleForFavorites = async (stop: BusStop) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/scrape?stop=${stop.stopNumber}`);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to fetch data");
+      }
+
+      setFavoriteScheduleData((prev) => ({
+        ...prev,
+        [stop.stopNumber]: {
+          data: Array.isArray(result) ? result : result.data || [],
+          stopName: stop.stopName,
+          fetchTime: new Date(),
+        },
+      }));
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to fetch data");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStopScheduleForAllStops = async (stop: BusStop) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/scrape?stop=${stop.stopNumber}`);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to fetch data");
+      }
+
+      setAllStopsScheduleData((prev) => ({
+        ...prev,
+        [stop.stopNumber]: {
+          data: Array.isArray(result) ? result : result.data || [],
+          stopName: stop.stopName,
+          fetchTime: new Date(),
+        },
+      }));
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to fetch data");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchStopSchedule = async (stop: BusStop) => {
     try {
       setLoading(true);
@@ -304,7 +378,8 @@ export default function BusSchedule({
         throw new Error(result.error || "Failed to fetch data");
       }
 
-      setScheduleData((prev) => ({
+      // For legacy single stop selection, add to favorites tab
+      setFavoriteScheduleData((prev) => ({
         ...prev,
         [stop.stopNumber]: {
           data: Array.isArray(result) ? result : result.data || [],
@@ -342,19 +417,45 @@ export default function BusSchedule({
       })
       .filter((stop) => stop.stopNumber !== "");
 
-    const promises = stops.map((stop) => fetchStopSchedule(stop));
+    const promises = stops.map((stop) => fetchStopScheduleForFavorites(stop));
     await Promise.all(promises);
-    setLastFetchTime(new Date());
+    setLastFavoriteFetchTime(new Date());
     setLastNearbySearch(new Date());
+    setLoading(false);
+  };
+
+  const fetchSchedulesForAllStops = async (nearbyStops: any[]) => {
+    if (nearbyStops.length === 0) return;
+
+    setLoading(true);
+    const stops: BusStop[] = nearbyStops.map((stop) => ({
+      stopNumber: stop.StopID.toString(),
+      stopName: stop.StopName || `${stop.Street} & ${stop.CrossStreet}`,
+      direction: stop.Municipality || "Unknown",
+      routeNumber: [],
+    }));
+
+    const promises = stops.map((stop) => fetchStopScheduleForAllStops(stop));
+    await Promise.all(promises);
+    setLastAllStopsFetchTime(new Date());
+    setLastAllStopsSearch(new Date());
     setLoading(false);
   };
 
   const clearNearbySearch = () => {
     setNearbyFavorites([]);
-    setScheduleData({});
+    setFavoriteScheduleData({});
     setNearbyCollapsed(true);
-    setLastFetchTime(null);
+    setLastFavoriteFetchTime(null);
     setLastNearbySearch(null);
+  };
+
+  const clearAllStopsSearch = () => {
+    setAllNearbyStops([]);
+    setAllStopsScheduleData({});
+    setAllStopsCollapsed(true);
+    setLastAllStopsFetchTime(null);
+    setLastAllStopsSearch(null);
   };
 
   const findAllNearbyStops = async () => {
@@ -368,8 +469,12 @@ export default function BusSchedule({
       const searchRadius = user?.nearbyRadius || 500;
       console.log(`Searching for all stops within ${searchRadius} meters`);
 
-      // Calculate distance for all bus stops using Haversine formula
+      // Get favorite stop IDs to exclude them
+      const favoriteStopIds = new Set(favorites.map((fav) => fav.stopId));
+
+      // Calculate distance for all bus stops using Haversine formula, excluding favorites
       const stopsWithDistance = allBusStops
+        .filter((stop) => !favoriteStopIds.has(stop.StopID)) // Exclude favorite stops
         .map((stop) => {
           const coordinates = extractCoordinates(stop);
           if (!coordinates) return null;
@@ -394,7 +499,9 @@ export default function BusSchedule({
         .sort((a, b) => a.distance - b.distance); // Sort by distance (closest first)
 
       setAllNearbyStops(stopsWithDistance);
-      console.log(`Found ${stopsWithDistance.length} stops within radius`);
+      console.log(
+        `Found ${stopsWithDistance.length} non-favorite stops within radius`
+      );
 
       // Auto-expand if stops were found
       if (stopsWithDistance.length > 0) {
@@ -407,32 +514,6 @@ export default function BusSchedule({
     } finally {
       setLocationLoading(false);
     }
-  };
-
-  const fetchSchedulesForAllStops = async (nearbyStops: any[]) => {
-    if (nearbyStops.length === 0) return;
-
-    setLoading(true);
-    const stops: BusStop[] = nearbyStops.map((stop) => ({
-      stopNumber: stop.StopID.toString(),
-      stopName: stop.StopName || `${stop.Street} & ${stop.CrossStreet}`,
-      direction: stop.Municipality || "Unknown",
-      routeNumber: [],
-    }));
-
-    const promises = stops.map((stop) => fetchStopSchedule(stop));
-    await Promise.all(promises);
-    setLastFetchTime(new Date());
-    setLastAllStopsSearch(new Date());
-    setLoading(false);
-  };
-
-  const clearAllStopsSearch = () => {
-    setAllNearbyStops([]);
-    setScheduleData({});
-    setAllStopsCollapsed(true);
-    setLastFetchTime(null);
-    setLastAllStopsSearch(null);
   };
 
   const generateGoogleMapsUrl = (stop: any) => {
@@ -491,9 +572,13 @@ export default function BusSchedule({
 
   const onTouchMove = (e: React.TouchEvent) => {
     setTouchEnd(e.targetTouches[0].clientX);
+    // Prevent default scrolling if we're in a horizontal swipe
+    if (touchStart && Math.abs(e.targetTouches[0].clientX - touchStart) > 10) {
+      e.preventDefault();
+    }
   };
 
-  const onTouchEnd = () => {
+  const onTouchEnd = (e: React.TouchEvent) => {
     setIsSwipeActive(false);
 
     if (!touchStart || !touchEnd) return;
@@ -504,8 +589,10 @@ export default function BusSchedule({
 
     if (isLeftSwipe && activeTab === "favorites") {
       setActiveTab("all");
+      e.preventDefault();
     } else if (isRightSwipe && activeTab === "all") {
       setActiveTab("favorites");
+      e.preventDefault();
     }
   };
 
@@ -575,14 +662,15 @@ export default function BusSchedule({
         </div>
 
         {/* Tab Navigation */}
-        <div className="mb-6 w-full">
+        <div
+          className="mb-6 w-full"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          style={{ touchAction: "pan-y" }}
+        >
           <div className="w-full">
-            <div
-              className="relative flex w-full bg-gray-800 rounded-lg p-1 border border-gray-600"
-              onTouchStart={onTouchStart}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
-            >
+            <div className="relative flex w-full bg-gray-800 rounded-lg p-1 border border-gray-600">
               {/* Sliding highlight background */}
               <div
                 className={`absolute top-1 bottom-1 w-1/2 bg-blue-600 rounded-md shadow-lg transition-transform duration-300 ease-in-out ${
@@ -619,12 +707,7 @@ export default function BusSchedule({
 
         {/* Nearby Favorites Section */}
         {activeTab === "favorites" && (
-          <div
-            className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700"
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-          >
+          <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
             <div
               className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer p-2 -m-2 rounded transition-colors"
               onClick={() =>
@@ -728,6 +811,7 @@ export default function BusSchedule({
                 })}
               </div>
             )}
+
             {!nearbyCollapsed && nearbyFavorites.length === 0 && (
               <div className="text-center py-4 text-gray-400">
                 {locationLoading
@@ -740,14 +824,8 @@ export default function BusSchedule({
           </div>
         )}
 
-        {/* All Nearby Stops Section */}
         {activeTab === "all" && (
-          <div
-            className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700"
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-          >
+          <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
             <div
               className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-2 -m-2 rounded transition-colors ${
                 allNearbyStops.length > 0
@@ -856,18 +934,35 @@ export default function BusSchedule({
         )}
 
         {/* Schedule Display - Multiple Stops */}
-        {Object.keys(scheduleData).length > 0 && (
+        {((activeTab === "favorites" &&
+          Object.keys(favoriteScheduleData).length > 0) ||
+          (activeTab === "all" &&
+            Object.keys(allStopsScheduleData).length > 0)) && (
           <div className="mt-6 sm:mt-8">
             <div className="mb-4 p-4 rounded-lg bg-gray-800 border border-gray-700">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <h2 className="text-base sm:text-lg md:text-xl font-semibold text-white">
-                  Selected Stops Schedule ({Object.keys(scheduleData).length}{" "}
-                  stop{Object.keys(scheduleData).length > 1 ? "s" : ""})
+                  {activeTab === "favorites" ? "Favorite" : "All Nearby"} Stops
+                  Schedule (
+                  {activeTab === "favorites"
+                    ? Object.keys(favoriteScheduleData).length
+                    : Object.keys(allStopsScheduleData).length}{" "}
+                  stop
+                  {(activeTab === "favorites"
+                    ? Object.keys(favoriteScheduleData).length
+                    : Object.keys(allStopsScheduleData).length) > 1
+                    ? "s"
+                    : ""}
+                  )
                 </h2>
-                {lastFetchTime && (
+                {((activeTab === "favorites" && lastFavoriteFetchTime) ||
+                  (activeTab === "all" && lastAllStopsFetchTime)) && (
                   <div className="text-sm text-gray-300">
                     Last updated:{" "}
-                    {lastFetchTime.toLocaleTimeString([], {
+                    {(activeTab === "favorites"
+                      ? lastFavoriteFetchTime
+                      : lastAllStopsFetchTime
+                    )?.toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
@@ -878,108 +973,141 @@ export default function BusSchedule({
 
             {/* Mobile Card View */}
             <div className="block sm:hidden space-y-4">
-              {Object.entries(scheduleData).map(
-                ([stopNumber, stopData]: [string, any]) => (
-                  <div
-                    key={stopNumber}
-                    className="bg-gray-800 rounded-lg p-4 border border-gray-700"
-                  >
-                    <h3 className="text-white font-semibold text-lg mb-3 border-b border-gray-600 pb-2">
+              {Object.entries(
+                activeTab === "favorites"
+                  ? favoriteScheduleData
+                  : allStopsScheduleData
+              ).map(([stopNumber, stopData]: [string, any]) => (
+                <div
+                  key={stopNumber}
+                  className="bg-gray-800 rounded-lg p-4 border border-gray-700"
+                >
+                  <div className="flex items-center justify-between mb-3 border-b border-gray-600 pb-2">
+                    <h3 className="text-white font-semibold text-lg">
                       {stopData.stopName}
                     </h3>
-                    <div className="space-y-2">
-                      {(stopData.data || [])
-                        .filter((item: any) => {
-                          if (!item.time) return false;
-                          const t = item.time.trim();
-                          return (
-                            t === "Now" ||
-                            t.endsWith("min") ||
-                            t.endsWith("mins")
-                          );
-                        })
-                        .map((item: any, index: number) => (
-                          <div
-                            key={`${stopNumber}-${index}`}
-                            className="bg-gray-700 rounded-lg p-3 border border-gray-600"
-                          >
-                            <div className="flex justify-between items-center">
-                              <div className="text-white font-semibold text-sm">
-                                {item.route}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {item.isLive && (
-                                  <span className="text-green-400 text-xs">
-                                    LIVE
-                                  </span>
-                                )}
-                                <span className="text-gray-200 text-sm">
-                                  {item.time}
+                    {stopData.fetchTime && (
+                      <div className="text-xs text-gray-400">
+                        {new Date(stopData.fetchTime).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {(stopData.data || [])
+                      .filter((item: any) => {
+                        if (!item.time) return false;
+                        const t = item.time.trim();
+                        return (
+                          t === "Now" || t.endsWith("min") || t.endsWith("mins")
+                        );
+                      })
+                      .map((item: any, index: number) => (
+                        <div
+                          key={`${stopNumber}-${index}`}
+                          className="bg-gray-700 rounded-lg p-3 border border-gray-600"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="text-white font-semibold text-sm">
+                              {item.route}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {item.isLive && (
+                                <span className="text-green-400 text-xs">
+                                  LIVE
                                 </span>
-                              </div>
+                              )}
+                              <span className="text-gray-200 text-sm">
+                                {item.time}
+                              </span>
                             </div>
                           </div>
-                        ))}
-                    </div>
+                        </div>
+                      ))}
                   </div>
-                )
-              )}
+                </div>
+              ))}
             </div>
 
-            {/* Desktop Table View */}
-            <div className="hidden sm:block overflow-x-auto rounded-lg border border-gray-700 bg-gray-800">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
-                      Stop Name
-                    </th>
-                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
-                      Route
-                    </th>
-                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
-                      Time
-                    </th>
-                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
-                      Live
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-gray-800 divide-y divide-gray-700">
-                  {Object.entries(scheduleData).flatMap(
-                    ([stopNumber, stopData]: [string, any]) =>
-                      (stopData.data || [])
-                        .filter((item: any) => {
-                          if (!item.time) return false;
-                          const t = item.time.trim();
-                          return (
-                            t === "Now" ||
-                            t.endsWith("min") ||
-                            t.endsWith("mins")
-                          );
-                        })
-                        .map((item: any, index: number) => (
-                          <tr
-                            key={`${stopNumber}-${index}`}
-                            className="hover:bg-gray-700 transition-colors"
-                          >
-                            <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-blue-400 font-medium">
-                              {stopData.stopName}
-                            </td>
-                            <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-white font-medium">
-                              {item.route}
-                            </td>
-                            <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-gray-200">
-                              {item.time}
-                            </td>
-                            <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-green-400">
-                              {item.isLive ? "✓" : ""}
-                            </td>
-                          </tr>
-                        ))
+            {/* Desktop Card View */}
+            <div className="hidden sm:block space-y-4">
+              {Object.entries(
+                activeTab === "favorites"
+                  ? favoriteScheduleData
+                  : allStopsScheduleData
+              ).map(([stopNumber, stopData]: [string, any]) => (
+                <div
+                  key={stopNumber}
+                  className="bg-gray-800 rounded-lg p-6 border border-gray-700"
+                >
+                  <div className="flex items-center justify-between mb-4 border-b border-gray-600 pb-3">
+                    <h3 className="text-white font-semibold text-xl">
+                      {stopData.stopName}
+                    </h3>
+                    {stopData.fetchTime && (
+                      <div className="text-sm text-gray-400">
+                        Updated:{" "}
+                        {new Date(stopData.fetchTime).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Desktop Grid Layout for Routes */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {(stopData.data || [])
+                      .filter((item: any) => {
+                        if (!item.time) return false;
+                        const t = item.time.trim();
+                        return (
+                          t === "Now" || t.endsWith("min") || t.endsWith("mins")
+                        );
+                      })
+                      .map((item: any, index: number) => (
+                        <div
+                          key={`${stopNumber}-${index}`}
+                          className="bg-gray-700 rounded-md p-4 hover:bg-gray-600 transition-colors"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-blue-400 font-bold text-lg">
+                              Route {item.route}
+                            </span>
+                            {item.isLive && (
+                              <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                                LIVE
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-white font-medium text-lg">
+                            {item.time}
+                          </div>
+                          {item.destination && (
+                            <div className="text-gray-300 text-sm mt-1 truncate">
+                              to {item.destination}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+
+                  {/* No active routes message */}
+                  {(stopData.data || []).filter((item: any) => {
+                    if (!item.time) return false;
+                    const t = item.time.trim();
+                    return (
+                      t === "Now" || t.endsWith("min") || t.endsWith("mins")
+                    );
+                  }).length === 0 && (
+                    <div className="text-center py-8 text-gray-400">
+                      No upcoming buses at this time
+                    </div>
                   )}
-                </tbody>
-              </table>
+                </div>
+              ))}
             </div>
           </div>
         )}
