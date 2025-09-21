@@ -22,11 +22,14 @@ export default function BusSchedule({
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [selectedStop, setSelectedStop] = useState<BusStop | null>(null);
+  const [selectedStops, setSelectedStops] = useState<BusStop[]>([]);
+  const [scheduleData, setScheduleData] = useState<{[stopId: string]: any}>({});
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
   const [allBusStops, setAllBusStops] = useState<any[]>([]);
   const [nearbyFavorites, setNearbyFavorites] = useState<FavoriteBusStop[]>([]);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [nearbyCollapsed, setNearbyCollapsed] = useState(true);
   const { showError } = useNotification();
 
   // Fetch favorites and all bus stops on component mount
@@ -147,6 +150,11 @@ export default function BusSchedule({
 
         setNearbyFavorites(nearbyWithWalkingDistance);
         console.log(`Found ${nearbyWithWalkingDistance.length} favorites within walking distance`);
+        
+        // Auto-expand if favorites were found
+        if (nearbyWithWalkingDistance.length > 0) {
+          setNearbyCollapsed(false);
+        }
 
       } catch (routesError) {
         console.warn('Google Routes API failed, falling back to Haversine distance:', routesError);
@@ -181,6 +189,11 @@ export default function BusSchedule({
 
         setNearbyFavorites(sortedNearby);
         console.log(`Found ${sortedNearby.length} favorites within radius using fallback method`);
+        
+        // Auto-expand if favorites were found
+        if (sortedNearby.length > 0) {
+          setNearbyCollapsed(false);
+        }
       }
 
     } catch (err) {
@@ -246,6 +259,56 @@ export default function BusSchedule({
     if (selectedStop) {
       await handleScrapeWithStop(selectedStop);
     }
+  };
+
+  const handleMultipleStopSelection = (stop: BusStop, isSelected: boolean) => {
+    if (isSelected) {
+      setSelectedStops(prev => [...prev, stop]);
+      fetchStopSchedule(stop);
+    } else {
+      setSelectedStops(prev => prev.filter(s => s.stopNumber !== stop.stopNumber));
+      setScheduleData(prev => {
+        const newData = { ...prev };
+        delete newData[stop.stopNumber];
+        return newData;
+      });
+    }
+  };
+
+  const fetchStopSchedule = async (stop: BusStop) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/scrape?stop=${stop.stopNumber}`);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to fetch data");
+      }
+
+      setScheduleData(prev => ({
+        ...prev,
+        [stop.stopNumber]: {
+          ...result,
+          stopName: stop.stopName,
+          fetchTime: new Date()
+        }
+      }));
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to fetch data");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAllSelectedSchedules = async () => {
+    if (selectedStops.length === 0) return;
+    
+    setLoading(true);
+    const promises = selectedStops.map(stop => fetchStopSchedule(stop));
+    await Promise.all(promises);
+    setLastFetchTime(new Date());
+    setLoading(false);
   };
 
   return (
@@ -315,20 +378,49 @@ export default function BusSchedule({
 
         {/* Nearby Favorites Section */}
         <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div 
+            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer p-2 -m-2 rounded transition-colors"
+            onClick={() => setNearbyCollapsed(!nearbyCollapsed)}
+          >
             <h2 className="text-lg font-semibold text-white">
               Nearby Favorite Stops
             </h2>
-            <button
-              onClick={findNearbyFavorites}
-              disabled={locationLoading || favorites.length === 0}
-              className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm transition-colors"
-            >
-              {locationLoading ? "Finding..." : "Find Nearby Stops"}
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedStops.length > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fetchAllSelectedSchedules();
+                  }}
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm transition-colors"
+                >
+                  {loading ? "Loading..." : `Get ${selectedStops.length} Schedule${selectedStops.length > 1 ? 's' : ''}`}
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  findNearbyFavorites();
+                }}
+                disabled={locationLoading || favorites.length === 0}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm transition-colors"
+              >
+                {locationLoading ? "Finding..." : "Find Nearby Stops"}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNearbyCollapsed(!nearbyCollapsed);
+                }}
+                className="text-gray-400 hover:text-white transition-colors ml-2"
+              >
+                {nearbyCollapsed ? "▼" : "▲"}
+              </button>
+            </div>
           </div>
 
-          {nearbyFavorites.length > 0 ? (
+          {!nearbyCollapsed && nearbyFavorites.length > 0 && (
             <div className="space-y-2">
               <div className="text-sm text-gray-400 mb-3">
                 Found {nearbyFavorites.length} favorite stop
@@ -339,65 +431,197 @@ export default function BusSchedule({
                 const busStop = allBusStops.find(
                   (stop) => stop.StopID === favorite.stopId
                 );
+                const mockStop: BusStop = {
+                  stopNumber: busStop?.StopID.toString() || '',
+                  stopName: favorite.customName || '',
+                  direction: `${busStop?.Street || "Unknown"} & ${
+                    busStop?.CrossStreet || "Unknown"
+                  }`,
+                  routeNumber: [],
+                };
+                const isSelected = selectedStops.some(s => s.stopNumber === mockStop.stopNumber);
+                
                 return (
                   <div
                     key={favorite.stopId}
-                    className="flex items-center justify-between p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors cursor-pointer"
-                    onClick={() => {
-                      if (busStop) {
-                        const mockStop: BusStop = {
-                          stopNumber: busStop.StopID.toString(),
-                          stopName: favorite.customName,
-                          direction: `${busStop.Street || "Unknown"} & ${
-                            busStop.CrossStreet || "Unknown"
-                          }`,
-                          routeNumber: [],
-                        };
-                        setSelectedStop(mockStop);
-                      }
-                    }}
+                    className="flex items-center gap-3 p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
                   >
-                    <div>
-                      <h3 className="font-medium text-white">
-                        {favorite.customName}
-                      </h3>
-                      <p className="text-sm text-gray-300">
-                        {busStop
-                          ? `${busStop.Street} & ${busStop.CrossStreet}`
-                          : "Stop info unavailable"}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-blue-400 font-medium">
-                        {Math.round((favorite as any).distance)}m away
-                      </div>
-                      {(favorite as any).walkingDuration && (
-                        <div className="text-xs text-green-400">
-                          {Math.ceil((favorite as any).walkingDuration / 60)} min walk
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        if (busStop) {
+                          handleMultipleStopSelection(mockStop, e.target.checked);
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => {
+                        if (busStop) {
+                          const currentlySelected = selectedStops.some(s => s.stopNumber === mockStop.stopNumber);
+                          handleMultipleStopSelection(mockStop, !currentlySelected);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium text-white">
+                            {favorite.customName}
+                          </h3>
+                          <p className="text-sm text-gray-300">
+                            {busStop
+                              ? `${busStop.Street} & ${busStop.CrossStreet}`
+                              : "Stop info unavailable"}
+                          </p>
                         </div>
-                      )}
-                      <div className="text-xs text-gray-400">
-                        Click to select
+                        <div className="text-right">
+                          <div className="text-sm text-blue-400 font-medium">
+                            {Math.round((favorite as any).distance)}m away
+                          </div>
+                          {(favorite as any).walkingDuration && (
+                            <div className="text-xs text-green-400">
+                              {Math.ceil((favorite as any).walkingDuration / 60)} min walk
+                            </div>
+                          )}
+                          <div className="text-xs text-gray-400">
+                            Click to {isSelected ? 'deselect' : 'select'}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-          ) : (
+          )}
+          {!nearbyCollapsed && nearbyFavorites.length === 0 && (
             <div className="text-center py-4 text-gray-400">
               {locationLoading
                 ? "Getting your location..."
                 : favorites.length === 0
                 ? "No favorite stops found. Add some from the Bus Stops tab first."
-                : nearbyFavorites.length === 0 && !locationLoading
-                ? "No favorite stops found within your search radius."
                 : "Click 'Find Nearby Stops' to see favorite stops near your location."}
             </div>
           )}
         </div>
 
-        {data && (
+        {/* Schedule Display - Multiple Stops */}
+        {Object.keys(scheduleData).length > 0 && (
+          <div className="mt-6 sm:mt-8">
+            <div className="mb-4 p-4 rounded-lg bg-gray-800 border border-gray-700">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h2 className="text-base sm:text-lg md:text-xl font-semibold text-white">
+                  Selected Stops Schedule ({Object.keys(scheduleData).length} stop{Object.keys(scheduleData).length > 1 ? 's' : ''})
+                </h2>
+                {lastFetchTime && (
+                  <div className="text-sm text-gray-300">
+                    Last updated:{" "}
+                    {lastFetchTime.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="block sm:hidden space-y-4">
+              {Object.entries(scheduleData).map(([stopNumber, stopData]: [string, any]) => (
+                <div key={stopNumber} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                  <h3 className="text-white font-semibold text-lg mb-3 border-b border-gray-600 pb-2">
+                    {stopData.stopName}
+                  </h3>
+                  <div className="space-y-2">
+                    {stopData
+                      .filter((item: any) => {
+                        if (!item.time) return false;
+                        const t = item.time.trim();
+                        return t === "Now" || t.endsWith("min") || t.endsWith("mins");
+                      })
+                      .map((item: any, index: number) => (
+                        <div
+                          key={`${stopNumber}-${index}`}
+                          className="bg-gray-700 rounded-lg p-3 border border-gray-600"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="text-white font-semibold text-sm">
+                              {item.route}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {item.isLive && (
+                                <span className="text-green-400 text-xs">LIVE</span>
+                              )}
+                              <span className="text-gray-200 text-sm">
+                                {item.time}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden sm:block overflow-x-auto rounded-lg border border-gray-700 bg-gray-800">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
+                      Stop Name
+                    </th>
+                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
+                      Route
+                    </th>
+                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
+                      Time
+                    </th>
+                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
+                      Live
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-gray-800 divide-y divide-gray-700">
+                  {Object.entries(scheduleData).flatMap(([stopNumber, stopData]: [string, any]) =>
+                    stopData
+                      .filter((item: any) => {
+                        if (!item.time) return false;
+                        const t = item.time.trim();
+                        return t === "Now" || t.endsWith("min") || t.endsWith("mins");
+                      })
+                      .map((item: any, index: number) => (
+                        <tr
+                          key={`${stopNumber}-${index}`}
+                          className="hover:bg-gray-700 transition-colors"
+                        >
+                          <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-blue-400 font-medium">
+                            {stopData.stopName}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-white font-medium">
+                            {item.route}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-gray-200">
+                            {item.time}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-green-400">
+                            {item.isLive ? "✓" : ""}
+                          </td>
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Legacy Single Stop Display */}
+        {data && !Object.keys(scheduleData).length && (
           <div className="mt-6 sm:mt-8">
             <div className="mb-4 p-4 rounded-lg bg-gray-800 border border-gray-700">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
