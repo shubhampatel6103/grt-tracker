@@ -574,10 +574,34 @@ export default function BusSchedule({
     }
   };
 
+  const openUrl = async (url: string) => {
+    try {
+      // Check if we're in a React Native environment
+      if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
+        // We're in a React Native WebView
+        (window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({ type: "openUrl", url })
+        );
+      } else if (typeof window !== "undefined" && (window as any).Linking) {
+        // We're in React Native
+        await (window as any).Linking.openURL(url);
+      } else {
+        // We're in a regular web browser
+        window.open(url, "_blank");
+      }
+    } catch (error) {
+      console.error("Error opening URL:", error);
+      // Fallback to window.open
+      if (typeof window !== "undefined") {
+        window.open(url, "_blank");
+      }
+    }
+  };
+
   const handleDirectionsClick = async (favorite: any) => {
     const url = await generateGoogleMapsUrlForFavorite(favorite);
     if (url !== "#") {
-      window.open(url, "_blank");
+      await openUrl(url);
     } else {
       showError("Unable to generate directions. Please check location access.");
     }
@@ -621,7 +645,7 @@ export default function BusSchedule({
         url = `https://www.google.com/maps/dir/${userLat},${userLng}/${stopLat},${stopLng}/@${stopLat},${stopLng},17z/data=!3m1!4b1!4m2!4m1!3e2`;
       }
 
-      window.open(url, "_blank");
+      await openUrl(url);
     } catch (error) {
       console.error("Error generating directions:", error);
       showError("Unable to generate directions. Please check location access.");
@@ -966,14 +990,14 @@ export default function BusSchedule({
                             {Math.round(stopWithDistance.distance)}m away
                           </div>
                         </div>
-                        <a
-                          href={generateGoogleMapsUrl(stopWithDistance)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={() =>
+                            openUrl(generateGoogleMapsUrl(stopWithDistance))
+                          }
                           className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded transition-colors"
                         >
                           Directions
-                        </a>
+                        </button>
                       </div>
                     </div>
                   ))}
