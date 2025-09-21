@@ -1,7 +1,7 @@
 /**
  * Google Routes API service for calculating walking distances
- * This service uses the Google Routes API to get accurate walking distances
- * between a user's location and bus stops.
+ * This service uses a secure server-side API route to get accurate walking distances
+ * between a user's location and bus stops without exposing API keys to the browser.
  */
 
 interface Location {
@@ -9,101 +9,8 @@ interface Location {
   longitude: number;
 }
 
-interface RouteResponse {
-  distance: number; // Distance in meters
-  duration: number; // Duration in seconds
-}
-
-interface RoutesAPIResponse {
-  routes: Array<{
-    distanceMeters: number;
-    duration: string;
-  }>;
-}
-
 /**
- * Calculate walking distance using Google Routes API
- * @param origin Starting location
- * @param destination Destination location
- * @returns Promise with distance in meters and duration in seconds
- */
-export async function calculateWalkingDistance(
-  origin: Location,
-  destination: Location
-): Promise<RouteResponse | null> {
-  try {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      console.warn('Google Maps API key not found');
-      return null;
-    }
-
-    const requestBody = {
-      origin: {
-        location: {
-          latLng: {
-            latitude: origin.latitude,
-            longitude: origin.longitude
-          }
-        }
-      },
-      destination: {
-        location: {
-          latLng: {
-            latitude: destination.latitude,
-            longitude: destination.longitude
-          }
-        }
-      },
-      travelMode: 'WALK',
-      routingPreference: 'ROUTING_PREFERENCE_UNSPECIFIED',
-      computeAlternativeRoutes: false,
-      routeModifiers: {
-        avoidTolls: false,
-        avoidHighways: false,
-        avoidFerries: false
-      },
-      languageCode: 'en-US',
-      units: 'METRIC'
-    };
-
-    const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters'
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      throw new Error(`Routes API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data: RoutesAPIResponse = await response.json();
-    
-    if (!data.routes || data.routes.length === 0) {
-      console.warn('No routes found');
-      return null;
-    }
-
-    const route = data.routes[0];
-    const durationInSeconds = parseInt(route.duration.replace('s', ''));
-
-    return {
-      distance: route.distanceMeters,
-      duration: durationInSeconds
-    };
-
-  } catch (error) {
-    console.error('Error calculating walking distance:', error);
-    return null;
-  }
-}
-
-/**
- * Calculate walking distances to multiple destinations in batch
+ * Calculate walking distances to multiple destinations using our secure API route
  * This helps optimize API calls by processing multiple destinations at once
  * @param origin Starting location
  * @param destinations Array of destination locations with IDs
@@ -115,45 +22,30 @@ export async function calculateBatchWalkingDistances(
   destinations: Array<{ id: number; location: Location; name: string }>,
   maxDistance: number
 ): Promise<Array<{ id: number; distance: number; duration: number; name: string }>> {
-  const results: Array<{ id: number; distance: number; duration: number; name: string }> = [];
-  
-  // Process destinations in smaller batches to avoid rate limiting
-  const batchSize = 5; // Adjust based on your API quotas
-  
-  for (let i = 0; i < destinations.length; i += batchSize) {
-    const batch = destinations.slice(i, i + batchSize);
-    
-    // Process each destination in the batch
-    const batchPromises = batch.map(async (dest) => {
-      const result = await calculateWalkingDistance(origin, dest.location);
-      if (result && result.distance <= maxDistance) {
-        return {
-          id: dest.id,
-          distance: result.distance,
-          duration: result.duration,
-          name: dest.name
-        };
-      }
-      return null;
+  try {
+    const response = await fetch('/api/walking-distances', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        origin,
+        destinations,
+        maxDistance
+      })
     });
 
-    const batchResults = await Promise.all(batchPromises);
-    
-    // Add successful results to the main results array
-    batchResults.forEach(result => {
-      if (result) {
-        results.push(result);
-      }
-    });
-
-    // Add a small delay between batches to respect rate limits
-    if (i + batchSize < destinations.length) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
     }
-  }
 
-  // Sort by walking distance (closest first)
-  return results.sort((a, b) => a.distance - b.distance);
+    const data = await response.json();
+    return data.results || [];
+
+  } catch (error) {
+    console.error('Error calculating batch walking distances:', error);
+    throw error;
+  }
 }
 
 /**
