@@ -484,7 +484,7 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                           <div className="flex-1 min-w-0">
                             {isEditing ? (
                               <div
-                                className="flex gap-2"
+                                className="space-y-2"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <input
@@ -499,28 +499,30 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
                                       setEditName("");
                                     }
                                   }}
-                                  className="flex-1 px-2 py-1 border border-gray-600 bg-gray-600 text-white rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  className="w-full px-2 py-1 border border-gray-600 bg-gray-600 text-white rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                   autoFocus
                                 />
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleFavoriteNameUpdate(favorite);
-                                  }}
-                                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition-colors"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingFavorite(null);
-                                    setEditName("");
-                                  }}
-                                  className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs transition-colors"
-                                >
-                                  Cancel
-                                </button>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleFavoriteNameUpdate(favorite);
+                                    }}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingFavorite(null);
+                                      setEditName("");
+                                    }}
+                                    className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <div>

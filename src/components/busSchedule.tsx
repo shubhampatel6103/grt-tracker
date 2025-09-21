@@ -561,6 +561,38 @@ export default function BusSchedule({
     }
   };
 
+  const handleDirectionsClickForStop = async (stopNumber: string) => {
+    try {
+      // Get current location
+      const userLocation = await getCurrentLocation();
+
+      // Find the bus stop data
+      const busStop = allBusStops.find(
+        (stop) => stop.StopID === parseInt(stopNumber)
+      );
+      if (!busStop) {
+        showError("Stop not found");
+        return;
+      }
+
+      const coordinates = extractCoordinates(busStop);
+      if (!coordinates) {
+        showError("Stop coordinates not available");
+        return;
+      }
+
+      const { latitude: userLat, longitude: userLng } = userLocation;
+      const { latitude: stopLat, longitude: stopLng } = coordinates;
+
+      // Google Maps directions URL format
+      const url = `https://www.google.com/maps/dir/${userLat},${userLng}/${stopLat},${stopLng}/@${stopLat},${stopLng},17z/data=!3m1!4b1!4m2!4m1!3e2`;
+      window.open(url, "_blank");
+    } catch (error) {
+      console.error("Error generating directions:", error);
+      showError("Unable to generate directions. Please check location access.");
+    }
+  };
+
   // Swipe functionality for mobile
   const minSwipeDistance = 50;
 
@@ -571,11 +603,8 @@ export default function BusSchedule({
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-    // Prevent default scrolling if we're in a horizontal swipe
-    if (touchStart && Math.abs(e.targetTouches[0].clientX - touchStart) > 10) {
-      e.preventDefault();
-    }
+    const currentX = e.targetTouches[0].clientX;
+    setTouchEnd(currentX);
   };
 
   const onTouchEnd = (e: React.TouchEvent) => {
@@ -589,16 +618,14 @@ export default function BusSchedule({
 
     if (isLeftSwipe && activeTab === "favorites") {
       setActiveTab("all");
-      e.preventDefault();
     } else if (isRightSwipe && activeTab === "all") {
       setActiveTab("favorites");
-      e.preventDefault();
     }
   };
 
   return (
-    <main className="min-h-screen p-2 sm:p-4 md:p-6 lg:p-8 bg-gray-900">
-      <div className="max-w-4xl mx-auto w-full">
+    <main className="min-h-screen p-2 sm:p-4 md:p-6 lg:p-8 bg-gray-900 flex flex-col">
+      <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col">
         <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-4 sm:mb-6 md:mb-8 text-center sm:text-left text-white">
           GRT Stop Schedule
         </h1>
@@ -667,7 +694,6 @@ export default function BusSchedule({
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
-          style={{ touchAction: "pan-y" }}
         >
           <div className="w-full">
             <div className="relative flex w-full bg-gray-800 rounded-lg p-1 border border-gray-600">
@@ -705,369 +731,433 @@ export default function BusSchedule({
           </div>
         </div>
 
-        {/* Nearby Favorites Section */}
-        {activeTab === "favorites" && (
-          <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-            <div
-              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer p-2 -m-2 rounded transition-colors"
-              onClick={() =>
-                nearbyFavorites.length > 0 &&
-                setNearbyCollapsed(!nearbyCollapsed)
-              }
-            >
-              <h2 className="text-lg font-semibold text-white">
-                Nearby Favorite Stops
-              </h2>
-              <div className="flex items-center gap-2">
-                {nearbyFavorites.length > 0 && (
+        {/* Swipe-enabled content area */}
+        <div
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          style={{ touchAction: "pan-y" }}
+          className="relative w-full flex-1 min-h-0"
+        >
+          {/* Nearby Favorites Section */}
+          {activeTab === "favorites" && (
+            <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
+              <div
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer p-2 -m-2 rounded transition-colors"
+                onClick={() =>
+                  nearbyFavorites.length > 0 &&
+                  setNearbyCollapsed(!nearbyCollapsed)
+                }
+              >
+                <h2 className="text-lg font-semibold text-white">
+                  Nearby Favorite Stops
+                </h2>
+                <div className="flex items-center gap-2">
+                  {nearbyFavorites.length > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearNearbySearch();
+                      }}
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
+                    >
+                      Clear Results
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      clearNearbySearch();
+                      findNearbyFavorites();
                     }}
-                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
+                    disabled={locationLoading || favorites.length === 0}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm transition-colors"
                   >
-                    Clear Results
+                    {locationLoading ? "Finding..." : "Find Nearby Stops"}
                   </button>
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    findNearbyFavorites();
-                  }}
-                  disabled={locationLoading || favorites.length === 0}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm transition-colors"
-                >
-                  {locationLoading ? "Finding..." : "Find Nearby Stops"}
-                </button>
-                {nearbyFavorites.length > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setNearbyCollapsed(!nearbyCollapsed);
-                    }}
-                    className="text-gray-400 hover:text-white transition-colors ml-2"
-                  >
-                    {nearbyCollapsed ? "▼" : "▲"}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {!nearbyCollapsed && nearbyFavorites.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-sm text-gray-400 mb-3">
-                  Found {nearbyFavorites.length} favorite stop
-                  {nearbyFavorites.length === 1 ? "" : "s"} within{" "}
-                  {user?.nearbyRadius || 500}m
+                  {nearbyFavorites.length > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNearbyCollapsed(!nearbyCollapsed);
+                      }}
+                      className="text-gray-400 hover:text-white transition-colors ml-2"
+                    >
+                      {nearbyCollapsed ? "▼" : "▲"}
+                    </button>
+                  )}
                 </div>
-                {nearbyFavorites.map((favorite) => {
-                  const busStop = allBusStops.find(
-                    (stop) => stop.StopID === favorite.stopId
-                  );
-                  return (
+              </div>
+
+              {!nearbyCollapsed && nearbyFavorites.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-400 mb-3">
+                    Found {nearbyFavorites.length} favorite stop
+                    {nearbyFavorites.length === 1 ? "" : "s"} within{" "}
+                    {user?.nearbyRadius || 500}m
+                  </div>
+                  {nearbyFavorites.map((favorite) => {
+                    const busStop = allBusStops.find(
+                      (stop) => stop.StopID === favorite.stopId
+                    );
+                    return (
+                      <div
+                        key={favorite.stopId}
+                        className="flex items-center justify-between p-3 bg-gray-700 rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <div className="font-medium text-white">
+                            {favorite.customName}
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Stop ID: {favorite.stopId}
+                          </div>
+                        </div>
+                        <div className="text-right flex items-center gap-2">
+                          <div>
+                            <div className="text-sm font-medium text-green-400">
+                              {(favorite as any).walkingDuration !== null
+                                ? `${Math.round(
+                                    (favorite as any).distance
+                                  )}m walk`
+                                : `${Math.round((favorite as any).distance)}m`}
+                            </div>
+                            {(favorite as any).walkingDuration !== null && (
+                              <div className="text-xs text-gray-500">
+                                via walking route
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleDirectionsClick(favorite)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded transition-colors"
+                          >
+                            Directions
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!nearbyCollapsed && nearbyFavorites.length === 0 && (
+                <div className="text-center py-4 text-gray-400">
+                  {locationLoading
+                    ? "Getting your location..."
+                    : favorites.length === 0
+                    ? "No favorite stops found. Add some from the Bus Stops tab first."
+                    : "Click 'Find Nearby Stops' to see favorite stops near your location."}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "all" && (
+            <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
+              <div
+                className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-2 -m-2 rounded transition-colors ${
+                  allNearbyStops.length > 0
+                    ? "cursor-pointer hover:bg-gray-700"
+                    : ""
+                }`}
+                onClick={() =>
+                  allNearbyStops.length > 0 &&
+                  setAllStopsCollapsed(!allStopsCollapsed)
+                }
+              >
+                <h2 className="text-lg font-semibold text-white">
+                  All Nearby Stops
+                </h2>
+                <div className="flex items-center gap-2">
+                  {allNearbyStops.length > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearAllStopsSearch();
+                      }}
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
+                    >
+                      Clear Results
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      findAllNearbyStops();
+                    }}
+                    disabled={locationLoading}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm transition-colors"
+                  >
+                    {locationLoading ? "Finding..." : "Find All Nearby Stops"}
+                  </button>
+                  {allNearbyStops.length > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAllStopsCollapsed(!allStopsCollapsed);
+                      }}
+                      className="text-gray-400 hover:text-white transition-colors ml-2"
+                    >
+                      {allStopsCollapsed ? "▼" : "▲"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {!allStopsCollapsed && allNearbyStops.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-400 mb-3">
+                    Found {allNearbyStops.length} stop
+                    {allNearbyStops.length === 1 ? "" : "s"} within{" "}
+                    {user?.nearbyRadius || 500}m
+                  </div>
+                  {allNearbyStops.map((stopWithDistance) => (
                     <div
-                      key={favorite.stopId}
+                      key={stopWithDistance.StopID}
                       className="flex items-center justify-between p-3 bg-gray-700 rounded-lg"
                     >
                       <div className="flex-1">
                         <div className="font-medium text-white">
-                          {favorite.customName}
+                          {stopWithDistance.StopName ||
+                            `${stopWithDistance.Street} & ${stopWithDistance.CrossStreet}`}
                         </div>
                         <div className="text-sm text-gray-400">
-                          Stop ID: {favorite.stopId}
+                          Stop ID: {stopWithDistance.StopID}
                         </div>
                       </div>
                       <div className="text-right flex items-center gap-2">
                         <div>
                           <div className="text-sm font-medium text-green-400">
-                            {(favorite as any).walkingDuration !== null
-                              ? `${Math.round(
-                                  (favorite as any).distance
-                                )}m walk`
-                              : `${Math.round((favorite as any).distance)}m`}
+                            {Math.round(stopWithDistance.distance)}m away
                           </div>
-                          {(favorite as any).walkingDuration !== null && (
-                            <div className="text-xs text-gray-500">
-                              via walking route
-                            </div>
-                          )}
                         </div>
-                        <button
-                          onClick={() => handleDirectionsClick(favorite)}
+                        <a
+                          href={generateGoogleMapsUrl(stopWithDistance)}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded transition-colors"
                         >
                           Directions
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!allStopsCollapsed && allNearbyStops.length === 0 && (
+                <div className="text-center py-4 text-gray-400">
+                  {locationLoading
+                    ? "Getting your location..."
+                    : "Click 'Find All Nearby Stops' to see all bus stops near your location."}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Schedule Display - Multiple Stops */}
+          {((activeTab === "favorites" &&
+            Object.keys(favoriteScheduleData).length > 0) ||
+            (activeTab === "all" &&
+              Object.keys(allStopsScheduleData).length > 0)) && (
+            <div className="mt-6 sm:mt-8">
+              {/* Mobile Card View */}
+              <div className="block sm:hidden space-y-4">
+                {Object.entries(
+                  activeTab === "favorites"
+                    ? favoriteScheduleData
+                    : allStopsScheduleData
+                ).map(([stopNumber, stopData]: [string, any]) => (
+                  <div
+                    key={stopNumber}
+                    className="bg-gray-800 rounded-lg p-4 border border-gray-700"
+                  >
+                    <div className="flex items-center justify-between mb-3 border-b border-gray-600 pb-2">
+                      <h3 className="text-white font-semibold text-lg">
+                        {stopData.stopName}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        {stopData.fetchTime && (
+                          <div className="text-xs text-gray-400">
+                            {new Date(stopData.fetchTime).toLocaleTimeString(
+                              [],
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }
+                            )}
+                          </div>
+                        )}
+                        <button
+                          onClick={() =>
+                            handleDirectionsClickForStop(stopNumber)
+                          }
+                          className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded transition-colors"
+                          title="Get directions"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                            />
+                          </svg>
                         </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {!nearbyCollapsed && nearbyFavorites.length === 0 && (
-              <div className="text-center py-4 text-gray-400">
-                {locationLoading
-                  ? "Getting your location..."
-                  : favorites.length === 0
-                  ? "No favorite stops found. Add some from the Bus Stops tab first."
-                  : "Click 'Find Nearby Stops' to see favorite stops near your location."}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "all" && (
-          <div className="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-            <div
-              className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-2 -m-2 rounded transition-colors ${
-                allNearbyStops.length > 0
-                  ? "cursor-pointer hover:bg-gray-700"
-                  : ""
-              }`}
-              onClick={() =>
-                allNearbyStops.length > 0 &&
-                setAllStopsCollapsed(!allStopsCollapsed)
-              }
-            >
-              <h2 className="text-lg font-semibold text-white">
-                All Nearby Stops
-              </h2>
-              <div className="flex items-center gap-2">
-                {allNearbyStops.length > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      clearAllStopsSearch();
-                    }}
-                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
-                  >
-                    Clear Results
-                  </button>
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    findAllNearbyStops();
-                  }}
-                  disabled={locationLoading}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm transition-colors"
-                >
-                  {locationLoading ? "Finding..." : "Find All Nearby Stops"}
-                </button>
-                {allNearbyStops.length > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setAllStopsCollapsed(!allStopsCollapsed);
-                    }}
-                    className="text-gray-400 hover:text-white transition-colors ml-2"
-                  >
-                    {allStopsCollapsed ? "▼" : "▲"}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {!allStopsCollapsed && allNearbyStops.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-sm text-gray-400 mb-3">
-                  Found {allNearbyStops.length} stop
-                  {allNearbyStops.length === 1 ? "" : "s"} within{" "}
-                  {user?.nearbyRadius || 500}m
-                </div>
-                {allNearbyStops.map((stopWithDistance) => (
-                  <div
-                    key={stopWithDistance.StopID}
-                    className="flex items-center justify-between p-3 bg-gray-700 rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <div className="font-medium text-white">
-                        {stopWithDistance.StopName ||
-                          `${stopWithDistance.Street} & ${stopWithDistance.CrossStreet}`}
-                      </div>
-                      <div className="text-sm text-gray-400">
-                        Stop ID: {stopWithDistance.StopID}
-                      </div>
-                    </div>
-                    <div className="text-right flex items-center gap-2">
-                      <div>
-                        <div className="text-sm font-medium text-green-400">
-                          {Math.round(stopWithDistance.distance)}m away
-                        </div>
-                      </div>
-                      <a
-                        href={generateGoogleMapsUrl(stopWithDistance)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded transition-colors"
-                      >
-                        Directions
-                      </a>
+                    <div className="space-y-2">
+                      {(stopData.data || [])
+                        .filter((item: any) => {
+                          if (!item.time) return false;
+                          const t = item.time.trim();
+                          return (
+                            t === "Now" ||
+                            t.endsWith("min") ||
+                            t.endsWith("mins")
+                          );
+                        })
+                        .map((item: any, index: number) => (
+                          <div
+                            key={`${stopNumber}-${index}`}
+                            className="bg-gray-700 rounded-lg p-3 border border-gray-600"
+                          >
+                            <div className="flex justify-between items-center">
+                              <div className="text-white font-semibold text-sm">
+                                {item.route}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {item.isLive && (
+                                  <span className="text-green-400 text-xs">
+                                    LIVE
+                                  </span>
+                                )}
+                                <span className="text-gray-200 text-sm">
+                                  {item.time}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   </div>
                 ))}
               </div>
-            )}
 
-            {!allStopsCollapsed && allNearbyStops.length === 0 && (
-              <div className="text-center py-4 text-gray-400">
-                {locationLoading
-                  ? "Getting your location..."
-                  : "Click 'Find All Nearby Stops' to see all bus stops near your location."}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Schedule Display - Multiple Stops */}
-        {((activeTab === "favorites" &&
-          Object.keys(favoriteScheduleData).length > 0) ||
-          (activeTab === "all" &&
-            Object.keys(allStopsScheduleData).length > 0)) && (
-          <div className="mt-6 sm:mt-8">
-
-            {/* Mobile Card View */}
-            <div className="block sm:hidden space-y-4">
-              {Object.entries(
-                activeTab === "favorites"
-                  ? favoriteScheduleData
-                  : allStopsScheduleData
-              ).map(([stopNumber, stopData]: [string, any]) => (
-                <div
-                  key={stopNumber}
-                  className="bg-gray-800 rounded-lg p-4 border border-gray-700"
-                >
-                  <div className="flex items-center justify-between mb-3 border-b border-gray-600 pb-2">
-                    <h3 className="text-white font-semibold text-lg">
-                      {stopData.stopName}
-                    </h3>
-                    {stopData.fetchTime && (
-                      <div className="text-xs text-gray-400">
-                        {new Date(stopData.fetchTime).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {(stopData.data || [])
-                      .filter((item: any) => {
-                        if (!item.time) return false;
-                        const t = item.time.trim();
-                        return (
-                          t === "Now" || t.endsWith("min") || t.endsWith("mins")
-                        );
-                      })
-                      .map((item: any, index: number) => (
-                        <div
-                          key={`${stopNumber}-${index}`}
-                          className="bg-gray-700 rounded-lg p-3 border border-gray-600"
+              {/* Desktop Card View */}
+              <div className="hidden sm:block space-y-4">
+                {Object.entries(
+                  activeTab === "favorites"
+                    ? favoriteScheduleData
+                    : allStopsScheduleData
+                ).map(([stopNumber, stopData]: [string, any]) => (
+                  <div
+                    key={stopNumber}
+                    className="bg-gray-800 rounded-lg p-6 border border-gray-700"
+                  >
+                    <div className="flex items-center justify-between mb-4 border-b border-gray-600 pb-3">
+                      <h3 className="text-white font-semibold text-xl">
+                        {stopData.stopName}
+                      </h3>
+                      <div className="flex items-center gap-3">
+                        {stopData.fetchTime && (
+                          <div className="text-sm text-gray-400">
+                            Updated:{" "}
+                            {new Date(stopData.fetchTime).toLocaleTimeString(
+                              [],
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }
+                            )}
+                          </div>
+                        )}
+                        <button
+                          onClick={() =>
+                            handleDirectionsClickForStop(stopNumber)
+                          }
+                          className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded transition-colors"
+                          title="Get directions to this stop"
                         >
-                          <div className="flex justify-between items-center">
-                            <div className="text-white font-semibold text-sm">
-                              {item.route}
-                            </div>
-                            <div className="flex items-center gap-2">
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Desktop Grid Layout for Routes */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {(stopData.data || [])
+                        .filter((item: any) => {
+                          if (!item.time) return false;
+                          const t = item.time.trim();
+                          return (
+                            t === "Now" ||
+                            t.endsWith("min") ||
+                            t.endsWith("mins")
+                          );
+                        })
+                        .map((item: any, index: number) => (
+                          <div
+                            key={`${stopNumber}-${index}`}
+                            className="bg-gray-700 rounded-md p-4 hover:bg-gray-600 transition-colors"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-blue-400 font-bold text-lg">
+                                Route {item.route}
+                              </span>
                               {item.isLive && (
-                                <span className="text-green-400 text-xs">
+                                <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
                                   LIVE
                                 </span>
                               )}
-                              <span className="text-gray-200 text-sm">
-                                {item.time}
-                              </span>
                             </div>
+                            <div className="text-white font-medium text-lg">
+                              {item.time}
+                            </div>
+                            {item.destination && (
+                              <div className="text-gray-300 text-sm mt-1 truncate">
+                                to {item.destination}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+                        ))}
+                    </div>
 
-            {/* Desktop Card View */}
-            <div className="hidden sm:block space-y-4">
-              {Object.entries(
-                activeTab === "favorites"
-                  ? favoriteScheduleData
-                  : allStopsScheduleData
-              ).map(([stopNumber, stopData]: [string, any]) => (
-                <div
-                  key={stopNumber}
-                  className="bg-gray-800 rounded-lg p-6 border border-gray-700"
-                >
-                  <div className="flex items-center justify-between mb-4 border-b border-gray-600 pb-3">
-                    <h3 className="text-white font-semibold text-xl">
-                      {stopData.stopName}
-                    </h3>
-                    {stopData.fetchTime && (
-                      <div className="text-sm text-gray-400">
-                        Updated:{" "}
-                        {new Date(stopData.fetchTime).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                    {/* No active routes message */}
+                    {(stopData.data || []).filter((item: any) => {
+                      if (!item.time) return false;
+                      const t = item.time.trim();
+                      return (
+                        t === "Now" || t.endsWith("min") || t.endsWith("mins")
+                      );
+                    }).length === 0 && (
+                      <div className="text-center py-8 text-gray-400">
+                        No upcoming buses at this time
                       </div>
                     )}
                   </div>
-
-                  {/* Desktop Grid Layout for Routes */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {(stopData.data || [])
-                      .filter((item: any) => {
-                        if (!item.time) return false;
-                        const t = item.time.trim();
-                        return (
-                          t === "Now" || t.endsWith("min") || t.endsWith("mins")
-                        );
-                      })
-                      .map((item: any, index: number) => (
-                        <div
-                          key={`${stopNumber}-${index}`}
-                          className="bg-gray-700 rounded-md p-4 hover:bg-gray-600 transition-colors"
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-blue-400 font-bold text-lg">
-                              Route {item.route}
-                            </span>
-                            {item.isLive && (
-                              <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-                                LIVE
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-white font-medium text-lg">
-                            {item.time}
-                          </div>
-                          {item.destination && (
-                            <div className="text-gray-300 text-sm mt-1 truncate">
-                              to {item.destination}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-
-                  {/* No active routes message */}
-                  {(stopData.data || []).filter((item: any) => {
-                    if (!item.time) return false;
-                    const t = item.time.trim();
-                    return (
-                      t === "Now" || t.endsWith("min") || t.endsWith("mins")
-                    );
-                  }).length === 0 && (
-                    <div className="text-center py-8 text-gray-400">
-                      No upcoming buses at this time
-                    </div>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </main>
   );
