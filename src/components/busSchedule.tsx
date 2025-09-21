@@ -760,12 +760,6 @@ export default function BusSchedule({
                   Found {nearbyFavorites.length} favorite stop
                   {nearbyFavorites.length === 1 ? "" : "s"} within{" "}
                   {user?.nearbyRadius || 500}m
-                  {lastNearbySearch && (
-                    <span className="ml-2">
-                      • Schedules updated:{" "}
-                      {lastNearbySearch.toLocaleTimeString()}
-                    </span>
-                  )}
                 </div>
                 {nearbyFavorites.map((favorite) => {
                   const busStop = allBusStops.find(
@@ -882,12 +876,6 @@ export default function BusSchedule({
                   Found {allNearbyStops.length} stop
                   {allNearbyStops.length === 1 ? "" : "s"} within{" "}
                   {user?.nearbyRadius || 500}m
-                  {lastAllStopsSearch && (
-                    <span className="ml-2">
-                      • Schedules updated:{" "}
-                      {lastAllStopsSearch.toLocaleTimeString()}
-                    </span>
-                  )}
                 </div>
                 {allNearbyStops.map((stopWithDistance) => (
                   <div
@@ -939,37 +927,6 @@ export default function BusSchedule({
           (activeTab === "all" &&
             Object.keys(allStopsScheduleData).length > 0)) && (
           <div className="mt-6 sm:mt-8">
-            <div className="mb-4 p-4 rounded-lg bg-gray-800 border border-gray-700">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <h2 className="text-base sm:text-lg md:text-xl font-semibold text-white">
-                  {activeTab === "favorites" ? "Favorite" : "All Nearby"} Stops
-                  Schedule (
-                  {activeTab === "favorites"
-                    ? Object.keys(favoriteScheduleData).length
-                    : Object.keys(allStopsScheduleData).length}{" "}
-                  stop
-                  {(activeTab === "favorites"
-                    ? Object.keys(favoriteScheduleData).length
-                    : Object.keys(allStopsScheduleData).length) > 1
-                    ? "s"
-                    : ""}
-                  )
-                </h2>
-                {((activeTab === "favorites" && lastFavoriteFetchTime) ||
-                  (activeTab === "all" && lastAllStopsFetchTime)) && (
-                  <div className="text-sm text-gray-300">
-                    Last updated:{" "}
-                    {(activeTab === "favorites"
-                      ? lastFavoriteFetchTime
-                      : lastAllStopsFetchTime
-                    )?.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
 
             {/* Mobile Card View */}
             <div className="block sm:hidden space-y-4">
@@ -1108,104 +1065,6 @@ export default function BusSchedule({
                   )}
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* Legacy Single Stop Display */}
-        {data && !Object.keys(scheduleData).length && (
-          <div className="mt-6 sm:mt-8">
-            <div className="mb-4 p-4 rounded-lg bg-gray-800 border border-gray-700">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                {lastFetchTime && (
-                  <div className="text-sm text-gray-300">
-                    Last updated:{" "}
-                    {lastFetchTime.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <h2 className="text-base sm:text-lg md:text-xl font-semibold mb-3 sm:mb-4 text-white">
-              Schedule Data:
-            </h2>
-
-            {/* Mobile Card View */}
-            <div className="block sm:hidden space-y-2">
-              {data
-                .filter((item: any) => {
-                  if (!item.time) return false;
-                  const t = item.time.trim();
-                  return t === "Now" || t.endsWith("min") || t.endsWith("mins");
-                })
-                .map((item: any, index: number) => (
-                  <div
-                    key={index}
-                    className="bg-gray-800 rounded-lg p-3 border border-gray-700"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="text-white font-semibold text-sm">
-                        {item.route}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {item.isLive && (
-                          <span className="text-green-400 text-xs">LIVE</span>
-                        )}
-                        <span className="text-gray-200 text-sm">
-                          {item.time}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-            </div>
-
-            {/* Desktop Table View */}
-            <div className="hidden sm:block overflow-x-auto rounded-lg border border-gray-700 bg-gray-800">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
-                      Route
-                    </th>
-                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
-                      Time
-                    </th>
-                    <th className="px-3 sm:px-4 py-2 text-left text-xs sm:text-sm font-medium text-gray-300 uppercase tracking-wider">
-                      Live
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-gray-800 divide-y divide-gray-700">
-                  {data
-                    .filter((item: any) => {
-                      if (!item.time) return false;
-                      const t = item.time.trim();
-                      return (
-                        t === "Now" || t.endsWith("min") || t.endsWith("mins")
-                      );
-                    })
-                    .map((item: any, index: number) => (
-                      <tr
-                        key={index}
-                        className="hover:bg-gray-700 transition-colors"
-                      >
-                        <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-white font-medium">
-                          {item.route}
-                        </td>
-                        <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-gray-200">
-                          {item.time}
-                        </td>
-                        <td className="px-3 sm:px-4 py-2 text-sm sm:text-base whitespace-nowrap text-green-400">
-                          {item.isLive ? "✓" : ""}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
             </div>
           </div>
         )}
