@@ -6,9 +6,9 @@ import { busStopCache } from "@/lib/services/busStopCache";
 import { useNotification } from "@/contexts/notificationContext";
 import {
   getCurrentLocation,
-  calculateDistance,
   extractCoordinates,
 } from "@/lib/locationUtils";
+import { calculateBatchWalkingDistances, calculateHaversineDistance } from "@/lib/services/routesApiService";
 
 interface BusScheduleProps {
   selectedStopId?: number | null;
@@ -100,54 +100,89 @@ export default function BusSchedule({
       const searchRadius = user?.searchRadius || 500;
       console.log(`User's search radius: ${searchRadius} meters`);
 
-      // Filter favorites that are within the search radius
-      const nearby = favorites.filter((favorite) => {
-        const busStop = allBusStops.find(
-          (stop) => stop.StopID === favorite.stopId
-        );
-        if (!busStop) {
-          return false;
-        }
-
-        const coordinates = extractCoordinates(busStop);
-        if (!coordinates) {
-          return false;
-        }
-
-        const distance = calculateDistance(
-          userLocation.latitude,
-          userLocation.longitude,
-          coordinates.latitude,
-          coordinates.longitude
-        );
-
-        return distance <= searchRadius;
-      });
-
-      // Sort by distance (closest first)
-      const sortedNearby = nearby
+      // Prepare destinations for batch processing
+      const destinations = favorites
         .map((favorite) => {
           const busStop = allBusStops.find(
             (stop) => stop.StopID === favorite.stopId
           );
-          const distance = busStop
-            ? (() => {
-                const coords = extractCoordinates(busStop);
-                return coords
-                  ? calculateDistance(
-                      userLocation.latitude,
-                      userLocation.longitude,
-                      coords.latitude,
-                      coords.longitude
-                    )
-                  : Infinity;
-              })()
-            : Infinity;
-          return { ...favorite, distance };
-        })
-        .sort((a, b) => a.distance - b.distance);
+          if (!busStop) return null;
 
-      setNearbyFavorites(sortedNearby);
+          const coordinates = extractCoordinates(busStop);
+          if (!coordinates) return null;
+
+          return {
+            id: favorite.stopId,
+            location: coordinates,
+            name: favorite.customName || busStop.StopName || `Stop ${favorite.stopId}`,
+            favorite: favorite
+          };
+        })
+        .filter((dest): dest is NonNullable<typeof dest> => dest !== null);
+
+      if (destinations.length === 0) {
+        setNearbyFavorites([]);
+        return;
+      }
+
+      // Try to use Google Routes API for walking distances
+      try {
+        console.log('Calculating walking distances using Google Routes API...');
+        const walkingDistances = await calculateBatchWalkingDistances(
+          userLocation,
+          destinations,
+          searchRadius
+        );
+
+        // Map results back to favorites with distance information
+        const nearbyWithWalkingDistance = walkingDistances.map((result) => {
+          const originalFavorite = destinations.find(d => d.id === result.id)?.favorite;
+          if (!originalFavorite) return null;
+          return {
+            ...originalFavorite,
+            distance: result.distance,
+            walkingDuration: result.duration
+          } as FavoriteBusStop & { distance: number; walkingDuration: number };
+        }).filter((item): item is NonNullable<typeof item> => item !== null);
+
+        setNearbyFavorites(nearbyWithWalkingDistance);
+        console.log(`Found ${nearbyWithWalkingDistance.length} favorites within walking distance`);
+
+      } catch (routesError) {
+        console.warn('Google Routes API failed, falling back to Haversine distance:', routesError);
+        
+        // Fallback to Haversine distance calculation
+        const nearby = destinations.filter((dest) => {
+          const distance = calculateHaversineDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            dest.location.latitude,
+            dest.location.longitude
+          );
+          return distance <= searchRadius;
+        });
+
+        // Sort by distance (closest first)
+        const sortedNearby = nearby
+          .map((dest) => {
+            const distance = calculateHaversineDistance(
+              userLocation.latitude,
+              userLocation.longitude,
+              dest.location.latitude,
+              dest.location.longitude
+            );
+            return { 
+              ...dest.favorite, 
+              distance,
+              walkingDuration: null // No duration data available with Haversine
+            } as FavoriteBusStop & { distance: number; walkingDuration: number | null };
+          })
+          .sort((a, b) => a.distance - b.distance);
+
+        setNearbyFavorites(sortedNearby);
+        console.log(`Found ${sortedNearby.length} favorites within radius using fallback method`);
+      }
+
     } catch (err) {
       showError(err instanceof Error ? err.message : "Failed to get location");
     } finally {
@@ -336,6 +371,11 @@ export default function BusSchedule({
                       <div className="text-sm text-blue-400 font-medium">
                         {Math.round((favorite as any).distance)}m away
                       </div>
+                      {(favorite as any).walkingDuration && (
+                        <div className="text-xs text-green-400">
+                          {Math.ceil((favorite as any).walkingDuration / 60)} min walk
+                        </div>
+                      )}
                       <div className="text-xs text-gray-400">
                         Click to select
                       </div>
