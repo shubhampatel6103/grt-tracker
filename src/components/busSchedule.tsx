@@ -1042,6 +1042,11 @@ export default function BusSchedule({
                                 </span>
                               </div>
                             </div>
+                            {item.destination && (
+                              <div className="text-gray-300 text-xs mt-1 truncate">
+                                {item.destination}
+                              </div>
+                            )}
                           </div>
                         ))}
                     </div>
@@ -1117,6 +1122,11 @@ export default function BusSchedule({
                           <div
                             key={`${stopNumber}-${index}`}
                             className="bg-gray-700 rounded-md p-4 hover:bg-gray-600 transition-colors"
+                            title={
+                              item.destination
+                                ? `Route ${item.route} to ${item.destination}`
+                                : `Route ${item.route}`
+                            }
                           >
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-blue-400 font-bold text-lg">
@@ -1133,7 +1143,7 @@ export default function BusSchedule({
                             </div>
                             {item.destination && (
                               <div className="text-gray-300 text-sm mt-1 truncate">
-                                to {item.destination}
+                                {item.destination}
                               </div>
                             )}
                           </div>
