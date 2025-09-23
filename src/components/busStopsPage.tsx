@@ -445,9 +445,6 @@ export default function BusStopsPage({
         {/* Map Section */}
         {showMap && (
           <div className="mb-6 bg-gray-800 rounded-lg border border-gray-700 p-4">
-            <h3 className="text-white font-semibold text-lg mb-3">
-              Bus Stops Map
-            </h3>
             <BusStopMap
               busStops={filteredStops}
               height="500px"
