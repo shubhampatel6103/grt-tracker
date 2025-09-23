@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { BusStopData, FavoriteBusStop } from "@/types/busStop";
 import { busStopCache } from "@/lib/services/busStopCache";
@@ -53,12 +53,7 @@ export default function BusStopsPage({
 
   const itemsPerPage = isSmallScreen ? 10 : 20;
 
-  useEffect(() => {
-    fetchBusStops();
-    fetchFavorites();
-  }, []);
-
-  const fetchFavorites = async () => {
+  const fetchFavorites = useCallback(async () => {
     try {
       const response = await fetch(`/api/favorites?userId=${user._id}`);
       if (response.ok) {
@@ -68,7 +63,54 @@ export default function BusStopsPage({
     } catch (err) {
       console.error("Error fetching favorites:", err);
     }
-  };
+  }, [user._id]);
+
+  const fetchBusStops = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      // Check if data is already cached
+      const wasCached = busStopCache.isCached();
+
+      // Use cache - will return cached data if available, or fetch from API if not
+      const data = await busStopCache.getBusStops();
+      setBusStops(data);
+      setFilteredStops(data);
+
+      // Debug: Check for stops with problematic coordinates
+      data.forEach((stop) => {
+        const coords = extractCoordinates(stop);
+        if (
+          coords &&
+          (coords.latitude < 41 ||
+            coords.latitude > 84 ||
+            coords.longitude < -141 ||
+            coords.longitude > -52)
+        ) {
+          console.warn("Found stop with invalid coordinates:", {
+            stopId: stop.StopID,
+            street: stop.Street,
+            coords,
+            rawLatLng: { lat: stop.Latitude, lng: stop.Longitude },
+            rawUTM: { easting: stop.Easting, northing: stop.Northing },
+            rawXY: { x: stop.X, y: stop.Y },
+          });
+        }
+      });
+    } catch (err) {
+      showError(
+        err instanceof Error ? err.message : "Failed to fetch bus stops"
+      );
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [showError]);
+
+  useEffect(() => {
+    fetchBusStops();
+    fetchFavorites();
+  }, [fetchBusStops, fetchFavorites]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -134,48 +176,6 @@ export default function BusStopsPage({
       setScheduleStopId(null);
     }
   }, [showMap]);
-
-  const fetchBusStops = async () => {
-    try {
-      setLoading(true);
-
-      // Check if data is already cached
-      const wasCached = busStopCache.isCached();
-
-      // Use cache - will return cached data if available, or fetch from API if not
-      const data = await busStopCache.getBusStops();
-      setBusStops(data);
-      setFilteredStops(data);
-
-      // Debug: Check for stops with problematic coordinates
-      data.forEach((stop) => {
-        const coords = extractCoordinates(stop);
-        if (
-          coords &&
-          (coords.latitude < 41 ||
-            coords.latitude > 84 ||
-            coords.longitude < -141 ||
-            coords.longitude > -52)
-        ) {
-          console.warn("Found stop with invalid coordinates:", {
-            stopId: stop.StopID,
-            street: stop.Street,
-            coords,
-            rawLatLng: { lat: stop.Latitude, lng: stop.Longitude },
-            rawUTM: { easting: stop.Easting, northing: stop.Northing },
-            rawXY: { x: stop.X, y: stop.Y },
-          });
-        }
-      });
-    } catch (err) {
-      showError(
-        err instanceof Error ? err.message : "Failed to fetch bus stops"
-      );
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleStopSelect = (stop: BusStopData) => {
     setSelectedStop(stop);
@@ -410,7 +410,7 @@ export default function BusStopsPage({
               <div className="flex flex-wrap gap-1 sm:gap-2 text-xs">
                 {searchQuery && (
                   <span className="bg-blue-600 text-white px-2 py-1 rounded text-xs">
-                    Search: "{searchQuery}"
+                    Search: &quot;{searchQuery}&quot;
                   </span>
                 )}
                 {showFavoritesOnly && (

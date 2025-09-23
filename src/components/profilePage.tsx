@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { FavoriteBusStop, BusStopData } from "@/types/busStop";
 import { busStopCache } from "@/lib/services/busStopCache";
 import ConfirmDeleteModal from "./confirmDeleteModal";
@@ -46,15 +46,10 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
-    fetchFavorites();
-    fetchAllBusStops();
-  }, []);
-
-  useEffect(() => {
     setSearchRadius(clampSearchRadius(user.searchRadius || 500));
   }, [user.searchRadius]);
 
-  const fetchFavorites = async () => {
+  const fetchFavorites = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/favorites?userId=${user._id}`);
@@ -70,16 +65,21 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user._id, showError]);
 
-  const fetchAllBusStops = async () => {
+  const fetchAllBusStops = useCallback(async () => {
     try {
       const data = await busStopCache.getBusStops();
       setAllBusStops(data);
     } catch (err) {
       console.error("Error fetching all bus stops:", err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchFavorites();
+    fetchAllBusStops();
+  }, [fetchFavorites, fetchAllBusStops]);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
