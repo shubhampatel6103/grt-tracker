@@ -1,3 +1,6 @@
+/* Leaflet CSS */
+@import 'leaflet/dist/leaflet.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -66,4 +69,31 @@ body {
 .slider::-moz-range-thumb:hover {
   background: #2563eb;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.7);
+}
+
+/* Leaflet map custom styles */
+.leaflet-container {
+  font-family: inherit;
+  background-color: #1f2937;
+}
+
+.leaflet-popup-content-wrapper {
+  background-color: #374151;
+  color: #f9fafb;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.leaflet-popup-tip {
+  background-color: #374151;
+}
+
+.custom-bus-stop-icon {
+  background: none !important;
+  border: none !important;
+}
+
+.custom-user-location-icon {
+  background: none !important;
+  border: none !important;
 }

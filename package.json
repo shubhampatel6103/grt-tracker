@@ -10,15 +10,18 @@
   },
   "dependencies": {
     "@sparticuz/chromium": "^133.0.0",
+    "@types/leaflet": "^1.9.20",
     "@types/utm": "^1.1.4",
     "bcryptjs": "^3.0.2",
     "dotenv": "^17.2.2",
+    "leaflet": "^1.9.4",
     "mogodb": "^0.0.1-security",
     "mongodb": "^6.19.0",
     "next": "15.1.8",
     "puppeteer-core": "^24.9.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-leaflet": "^5.0.0",
     "utm": "^1.1.1"
   },
   "devDependencies": {

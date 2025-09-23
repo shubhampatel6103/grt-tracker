@@ -70,27 +70,59 @@ export function utmToLatLng(
 export function extractCoordinates(busStop: any): { latitude: number; longitude: number } | null {
   // First try direct latitude/longitude
   if (typeof busStop.Latitude === 'number' && typeof busStop.Longitude === 'number') {
-    return {
-      latitude: busStop.Latitude,
-      longitude: busStop.Longitude
-    };
+    // Validate that coordinates are reasonable for Canada
+    if (busStop.Latitude >= 41 && busStop.Latitude <= 84 && 
+        busStop.Longitude >= -141 && busStop.Longitude <= -52) {
+      return {
+        latitude: busStop.Latitude,
+        longitude: busStop.Longitude
+      };
+    } else {
+      console.warn('Invalid lat/lng coordinates detected:', busStop.Latitude, busStop.Longitude, 'for stop:', busStop.StopName || busStop.stop_name);
+    }
   }
   
   // Try Easting/Northing (UTM coordinates)
   if (typeof busStop.Easting === 'number' && typeof busStop.Northing === 'number') {
     try {
-      return utmToLatLng(busStop.Easting, busStop.Northing);
+      // Validate UTM coordinates are reasonable for Ontario (zone 17)
+      if (busStop.Easting > 200000 && busStop.Easting < 800000 && 
+          busStop.Northing > 4000000 && busStop.Northing < 6000000) {
+        const coords = utmToLatLng(busStop.Easting, busStop.Northing);
+        // Double-check the converted coordinates are reasonable
+        if (coords.latitude >= 41 && coords.latitude <= 84 && 
+            coords.longitude >= -141 && coords.longitude <= -52) {
+          return coords;
+        } else {
+          console.warn('UTM conversion resulted in invalid coordinates:', coords, 'from UTM:', busStop.Easting, busStop.Northing);
+        }
+      } else {
+        console.warn('Invalid UTM coordinates detected:', busStop.Easting, busStop.Northing, 'for stop:', busStop.StopName || busStop.stop_name);
+      }
     } catch (error) {
-      console.warn('Failed to convert UTM coordinates:', error);
+      console.warn('Failed to convert UTM coordinates:', error, 'for stop:', busStop.StopName || busStop.stop_name);
     }
   }
   
   // Try X/Y coordinates (assuming they are also UTM)
   if (typeof busStop.X === 'number' && typeof busStop.Y === 'number') {
     try {
-      return utmToLatLng(busStop.X, busStop.Y);
+      // Validate UTM coordinates are reasonable for Ontario (zone 17)
+      if (busStop.X > 200000 && busStop.X < 800000 && 
+          busStop.Y > 4000000 && busStop.Y < 6000000) {
+        const coords = utmToLatLng(busStop.X, busStop.Y);
+        // Double-check the converted coordinates are reasonable
+        if (coords.latitude >= 41 && coords.latitude <= 84 && 
+            coords.longitude >= -141 && coords.longitude <= -52) {
+          return coords;
+        } else {
+          console.warn('X/Y conversion resulted in invalid coordinates:', coords, 'from X/Y:', busStop.X, busStop.Y);
+        }
+      } else {
+        console.warn('Invalid X/Y coordinates detected:', busStop.X, busStop.Y, 'for stop:', busStop.StopName || busStop.stop_name);
+      }
     } catch (error) {
-      console.warn('Failed to convert X/Y coordinates:', error);
+      console.warn('Failed to convert X/Y coordinates:', error, 'for stop:', busStop.StopName || busStop.stop_name);
     }
   }
   
