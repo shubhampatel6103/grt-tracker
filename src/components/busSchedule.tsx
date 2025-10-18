@@ -466,7 +466,7 @@ export default function BusSchedule({
       const userLocation = await getCurrentLocation();
 
       // Get user's search radius (default to 500m if not set)
-      const searchRadius = user?.nearbyRadius || 500;
+      const searchRadius = user?.searchRadius || 500;
       console.log(`Searching for all stops within ${searchRadius} meters`);
 
       // Get favorite stop IDs to exclude them
@@ -852,7 +852,7 @@ export default function BusSchedule({
                   <div className="text-sm text-gray-400 mb-3">
                     Found {nearbyFavorites.length} favorite stop
                     {nearbyFavorites.length === 1 ? "" : "s"} within{" "}
-                    {user?.nearbyRadius || 500}m
+                    {user?.searchRadius || 500}m
                   </div>
                   {nearbyFavorites.map((favorite) => {
                     const busStop = allBusStops.find(
@@ -968,7 +968,7 @@ export default function BusSchedule({
                   <div className="text-sm text-gray-400 mb-3">
                     Found {allNearbyStops.length} stop
                     {allNearbyStops.length === 1 ? "" : "s"} within{" "}
-                    {user?.nearbyRadius || 500}m
+                    {user?.searchRadius || 500}m
                   </div>
                   {allNearbyStops.map((stopWithDistance) => (
                     <div
