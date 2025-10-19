@@ -3,7 +3,10 @@
 import { useState, useEffect } from "react";
 import { useNotification } from "@/contexts/notificationContext";
 import { getCurrentLocation, extractCoordinates } from "@/lib/locationUtils";
-import { calculateBatchWalkingDistances, calculateHaversineDistance } from "@/lib/services/routesApiService";
+import {
+  calculateBatchWalkingDistances,
+  calculateHaversineDistance,
+} from "@/lib/services/routesApiService";
 import { busStopCache } from "@/lib/services/busStopCache";
 
 interface BusScheduleCardProps {
@@ -48,14 +51,14 @@ export default function BusScheduleCard({
   const fetchWalkingInfo = async () => {
     try {
       setLocationLoading(true);
-      
+
       // Get current location
       const userLocation = await getCurrentLocation();
-      
+
       // Get bus stop data
       const busStops = await busStopCache.getBusStops();
-      const busStop = busStops.find(stop => stop.StopID === stopId);
-      
+      const busStop = busStops.find((stop) => stop.StopID === stopId);
+
       if (!busStop) {
         console.warn(`Bus stop ${stopId} not found`);
         return;
@@ -68,16 +71,18 @@ export default function BusScheduleCard({
       }
 
       // Check if this is a favorite stop
-      const isFavorite = favorites.some(fav => fav.stopId === stopId);
+      const isFavorite = favorites.some((fav) => fav.stopId === stopId);
 
       if (isFavorite) {
         // Use Google Routes API for walking distance
         try {
-          const destinations = [{
-            id: stopId,
-            location: coordinates,
-            name: stopName,
-          }];
+          const destinations = [
+            {
+              id: stopId,
+              location: coordinates,
+              name: stopName,
+            },
+          ];
 
           const walkingDistances = await calculateBatchWalkingDistances(
             userLocation,
@@ -176,11 +181,11 @@ export default function BusScheduleCard({
     try {
       // Get current location
       const userLocation = await getCurrentLocation();
-      
+
       // Get bus stop data
       const busStops = await busStopCache.getBusStops();
-      const busStop = busStops.find(stop => stop.StopID === stopId);
-      
+      const busStop = busStops.find((stop) => stop.StopID === stopId);
+
       if (!busStop) {
         showError("Bus stop not found");
         return;
@@ -196,9 +201,10 @@ export default function BusScheduleCard({
       const { latitude: stopLat, longitude: stopLng } = coordinates;
 
       // Use different URL format for mobile vs desktop
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        navigator.userAgent
-      );
+      const isMobile =
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        );
 
       let url;
       if (isMobile) {
@@ -258,26 +264,21 @@ export default function BusScheduleCard({
             Bus Schedule - {stopName}
           </h3>
           <p className="text-sm text-gray-400">Stop ID: {stopId}</p>
-          
+
           {/* Walking Info Display */}
           {walkingInfo && (
             <div className="mt-2 flex items-center gap-4 text-sm text-gray-300">
-              <span className="flex items-center gap-1">
-                🚶 {walkingInfo.distance}
-              </span>
-              <span className="flex items-center gap-1">
-                ⏱️ {walkingInfo.duration}
-              </span>
+              <span>{walkingInfo.distance}m</span>
               <button
                 onClick={handleDirections}
-                className="text-blue-400 hover:text-blue-300 underline flex items-center gap-1 transition-colors"
+                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
               >
-                🗺️ Get Directions
+                Directions
               </button>
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center gap-2">
           {lastFetchTime && (
             <span className="text-xs text-gray-400">

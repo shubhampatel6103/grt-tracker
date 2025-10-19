@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { BusStop, FavoriteBusStop } from "@/types/busStop";
 import { busStopCache } from "@/lib/services/busStopCache";
 import { useNotification } from "@/contexts/notificationContext";
@@ -9,6 +9,7 @@ import {
   calculateBatchWalkingDistances,
   calculateHaversineDistance,
 } from "@/lib/services/routesApiService";
+import { persistenceUtils, persistenceKeys } from "@/lib/persistence";
 
 interface BusScheduleProps {
   selectedStopId?: number | null;
@@ -47,7 +48,92 @@ export default function BusSchedule({
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [isSwipeActive, setIsSwipeActive] = useState(false);
+  const [stateLoaded, setStateLoaded] = useState(false);
   const { showError, showSuccess } = useNotification();
+
+  // Save dashboard state to localStorage
+  const saveDashboardState = useCallback(() => {
+    if (!stateLoaded) return;
+
+    const state = {
+      favoriteScheduleData,
+      allStopsScheduleData,
+      nearbyFavorites,
+      allNearbyStops,
+      nearbyCollapsed,
+      allStopsCollapsed,
+      lastFavoriteFetchTime: lastFavoriteFetchTime?.toISOString(),
+      lastAllStopsFetchTime: lastAllStopsFetchTime?.toISOString(),
+      lastNearbySearch: lastNearbySearch?.toISOString(),
+      lastAllStopsSearch: lastAllStopsSearch?.toISOString(),
+      activeTab,
+    };
+    persistenceUtils.setItem(persistenceKeys.dashboardSearch, state);
+  }, [
+    favoriteScheduleData,
+    allStopsScheduleData,
+    nearbyFavorites,
+    allNearbyStops,
+    nearbyCollapsed,
+    allStopsCollapsed,
+    lastFavoriteFetchTime,
+    lastAllStopsFetchTime,
+    lastNearbySearch,
+    lastAllStopsSearch,
+    activeTab,
+    stateLoaded,
+  ]);
+
+  // Clear dashboard state from localStorage
+  const clearDashboardState = useCallback(() => {
+    persistenceUtils.removeItem(persistenceKeys.dashboardSearch);
+  }, []);
+
+  // Load dashboard state from localStorage
+  useEffect(() => {
+    const loadPersistedState = () => {
+      const savedState = persistenceUtils.getItem(
+        persistenceKeys.dashboardSearch
+      );
+      if (savedState) {
+        if (savedState.favoriteScheduleData)
+          setFavoriteScheduleData(savedState.favoriteScheduleData);
+        if (savedState.allStopsScheduleData)
+          setAllStopsScheduleData(savedState.allStopsScheduleData);
+        if (savedState.nearbyFavorites)
+          setNearbyFavorites(savedState.nearbyFavorites);
+        if (savedState.allNearbyStops)
+          setAllNearbyStops(savedState.allNearbyStops);
+        if (savedState.nearbyCollapsed !== undefined)
+          setNearbyCollapsed(savedState.nearbyCollapsed);
+        if (savedState.allStopsCollapsed !== undefined)
+          setAllStopsCollapsed(savedState.allStopsCollapsed);
+        if (savedState.activeTab) setActiveTab(savedState.activeTab);
+
+        // Restore timestamps
+        if (savedState.lastFavoriteFetchTime) {
+          setLastFavoriteFetchTime(new Date(savedState.lastFavoriteFetchTime));
+        }
+        if (savedState.lastAllStopsFetchTime) {
+          setLastAllStopsFetchTime(new Date(savedState.lastAllStopsFetchTime));
+        }
+        if (savedState.lastNearbySearch) {
+          setLastNearbySearch(new Date(savedState.lastNearbySearch));
+        }
+        if (savedState.lastAllStopsSearch) {
+          setLastAllStopsSearch(new Date(savedState.lastAllStopsSearch));
+        }
+      }
+      setStateLoaded(true);
+    };
+
+    loadPersistedState();
+  }, []);
+
+  // Save state whenever it changes
+  useEffect(() => {
+    saveDashboardState();
+  }, [saveDashboardState]);
 
   // Fetch favorites and all bus stops on component mount
   useEffect(() => {

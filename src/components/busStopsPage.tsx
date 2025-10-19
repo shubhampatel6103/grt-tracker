@@ -10,15 +10,14 @@ import BusScheduleCard from "./busScheduleCard";
 import { useNotification } from "@/contexts/notificationContext";
 import { getCurrentLocation, extractCoordinates } from "@/lib/locationUtils";
 import BusStopMap from "./busStopMap";
+import { persistenceUtils, persistenceKeys } from "@/lib/persistence";
 
 interface BusStopsPageProps {
   user: any;
-  onStopSelect?: (stopId: number) => void;
 }
 
 export default function BusStopsPage({
   user,
-  onStopSelect,
 }: BusStopsPageProps) {
   const [busStops, setBusStops] = useState<BusStopData[]>([]);
   const [filteredStops, setFilteredStops] = useState<BusStopData[]>([]);
@@ -27,43 +26,11 @@ export default function BusStopsPage({
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Initialize schedule state from localStorage
-  const initializeScheduleState = () => {
-    try {
-      const savedScheduleState = localStorage.getItem(
-        "busStopsPage_scheduleState"
-      );
-      if (savedScheduleState) {
-        const parsed = JSON.parse(savedScheduleState);
-        return {
-          showSchedule: parsed.showSchedule || false,
-          scheduleStopId: parsed.scheduleStopId || null,
-          selectedStopId: parsed.selectedStopId || null,
-          selectedStopData: parsed.selectedStopData || null,
-        };
-      }
-    } catch (error) {
-      console.error("Error parsing saved schedule state:", error);
-    }
-    return {
-      showSchedule: false,
-      scheduleStopId: null,
-      selectedStopId: null,
-      selectedStopData: null,
-    };
-  };
-
-  const initialScheduleState = initializeScheduleState();
-
-  const [selectedStop, setSelectedStop] = useState<BusStopData | null>(
-    initialScheduleState.selectedStopData
-  );
+  const [selectedStop, setSelectedStop] = useState<BusStopData | null>(null);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
   const [showMap, setShowMap] = useState(false);
-  const [selectedStopId, setSelectedStopId] = useState<number | null>(
-    initialScheduleState.selectedStopId
-  );
+  const [selectedStopId, setSelectedStopId] = useState<number | null>(null);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -80,15 +47,32 @@ export default function BusStopsPage({
     stop: BusStopData | null;
   }>({ isOpen: false, stop: null });
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [showSchedule, setShowSchedule] = useState(
-    initialScheduleState.showSchedule
-  );
-  const [scheduleStopId, setScheduleStopId] = useState<number | null>(
-    initialScheduleState.scheduleStopId
-  );
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleStopId, setScheduleStopId] = useState<number | null>(null);
+  const [stateLoaded, setStateLoaded] = useState(false);
   const router = useRouter();
 
   const itemsPerPage = isSmallScreen ? 10 : 20;
+
+  // Load state from localStorage on component mount
+  useEffect(() => {
+    const loadPersistedState = () => {
+      const savedScheduleState = persistenceUtils.getItem(
+        persistenceKeys.busStopsPage
+      );
+      if (savedScheduleState && savedScheduleState.showSchedule) {
+        setShowSchedule(savedScheduleState.showSchedule);
+        setScheduleStopId(savedScheduleState.scheduleStopId);
+        setSelectedStopId(savedScheduleState.selectedStopId);
+        if (savedScheduleState.selectedStopData) {
+          setSelectedStop(savedScheduleState.selectedStopData);
+        }
+      }
+      setStateLoaded(true);
+    };
+
+    loadPersistedState();
+  }, []);
 
   // Save schedule state to localStorage
   const saveScheduleState = useCallback(
@@ -98,25 +82,14 @@ export default function BusStopsPage({
       selectedStopId: number | null;
       selectedStopData: BusStopData | null;
     }) => {
-      try {
-        localStorage.setItem(
-          "busStopsPage_scheduleState",
-          JSON.stringify(state)
-        );
-      } catch (error) {
-        console.error("Error saving schedule state:", error);
-      }
+      persistenceUtils.setItem(persistenceKeys.busStopsPage, state);
     },
     []
   );
 
   // Clear schedule state from localStorage
   const clearScheduleState = useCallback(() => {
-    try {
-      localStorage.removeItem("busStopsPage_scheduleState");
-    } catch (error) {
-      console.error("Error clearing schedule state:", error);
-    }
+    persistenceUtils.removeItem(persistenceKeys.busStopsPage);
   }, []);
 
   const fetchFavorites = useCallback(async () => {
@@ -231,20 +204,23 @@ export default function BusStopsPage({
     }
   }, [searchQuery, busStops, showFavoritesOnly, favorites]);
 
-  // Save schedule state to localStorage whenever it changes
+  // Save schedule state to localStorage whenever it changes (only after initial load)
   useEffect(() => {
-    saveScheduleState({
-      showSchedule,
-      scheduleStopId,
-      selectedStopId,
-      selectedStopData: selectedStop,
-    });
+    if (stateLoaded) {
+      saveScheduleState({
+        showSchedule,
+        scheduleStopId,
+        selectedStopId,
+        selectedStopData: selectedStop,
+      });
+    }
   }, [
     showSchedule,
     scheduleStopId,
     selectedStopId,
     selectedStop,
     saveScheduleState,
+    stateLoaded,
   ]);
 
   // Restore selected stop data when bus stops are loaded and we have a saved selected stop ID
