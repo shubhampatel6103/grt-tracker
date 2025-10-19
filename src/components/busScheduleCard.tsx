@@ -15,6 +15,18 @@ interface BusScheduleCardProps {
   onClose: () => void;
   user?: any;
   favorites?: any[];
+  initialScheduleData?: ScheduleItem[];
+  initialWalkingInfo?: {
+    distance: number;
+    duration?: number;
+    isFavorite: boolean;
+  };
+  initialLastFetchTime?: Date;
+  onDataChange?: (data: {
+    scheduleData: ScheduleItem[];
+    walkingInfo: any;
+    lastFetchTime: Date;
+  }) => void;
 }
 
 interface ScheduleItem {
@@ -30,23 +42,45 @@ export default function BusScheduleCard({
   onClose,
   user,
   favorites = [],
+  initialScheduleData = [],
+  initialWalkingInfo,
+  initialLastFetchTime,
+  onDataChange,
 }: BusScheduleCardProps) {
   const [loading, setLoading] = useState(false);
-  const [scheduleData, setScheduleData] = useState<ScheduleItem[]>([]);
-  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [scheduleData, setScheduleData] =
+    useState<ScheduleItem[]>(initialScheduleData);
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(
+    initialLastFetchTime || null
+  );
   const [walkingInfo, setWalkingInfo] = useState<{
     distance: number;
     duration?: number;
     isFavorite: boolean;
-  } | null>(null);
+  } | null>(initialWalkingInfo || null);
   const [locationLoading, setLocationLoading] = useState(false);
   const { showError } = useNotification();
 
-  // Fetch schedule data and walking info when component mounts
+  // Fetch schedule data and walking info when component mounts (only if not provided initially)
   useEffect(() => {
-    fetchSchedule();
-    fetchWalkingInfo();
-  }, [stopId]);
+    if (initialScheduleData.length === 0) {
+      fetchSchedule();
+    }
+    if (!initialWalkingInfo) {
+      fetchWalkingInfo();
+    }
+  }, [stopId, initialScheduleData.length, initialWalkingInfo]);
+
+  // Notify parent component when data changes
+  useEffect(() => {
+    if (onDataChange && lastFetchTime) {
+      onDataChange({
+        scheduleData,
+        walkingInfo,
+        lastFetchTime,
+      });
+    }
+  }, [scheduleData, walkingInfo, lastFetchTime, onDataChange]);
 
   const fetchWalkingInfo = async () => {
     try {

@@ -16,9 +16,7 @@ interface BusStopsPageProps {
   user: any;
 }
 
-export default function BusStopsPage({
-  user,
-}: BusStopsPageProps) {
+export default function BusStopsPage({ user }: BusStopsPageProps) {
   const [busStops, setBusStops] = useState<BusStopData[]>([]);
   const [filteredStops, setFilteredStops] = useState<BusStopData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +47,9 @@ export default function BusStopsPage({
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleStopId, setScheduleStopId] = useState<number | null>(null);
+  const [scheduleData, setScheduleData] = useState<any[]>([]);
+  const [walkingInfo, setWalkingInfo] = useState<any>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [stateLoaded, setStateLoaded] = useState(false);
   const router = useRouter();
 
@@ -57,15 +58,36 @@ export default function BusStopsPage({
   // Load state from localStorage on component mount
   useEffect(() => {
     const loadPersistedState = () => {
-      const savedScheduleState = persistenceUtils.getItem(
-        persistenceKeys.busStopsPage
-      );
-      if (savedScheduleState && savedScheduleState.showSchedule) {
-        setShowSchedule(savedScheduleState.showSchedule);
-        setScheduleStopId(savedScheduleState.scheduleStopId);
-        setSelectedStopId(savedScheduleState.selectedStopId);
-        if (savedScheduleState.selectedStopData) {
-          setSelectedStop(savedScheduleState.selectedStopData);
+      const savedState = persistenceUtils.getItem(persistenceKeys.busStopsPage);
+      if (savedState) {
+        // Restore schedule state
+        if (savedState.showSchedule) {
+          setShowSchedule(savedState.showSchedule);
+          setScheduleStopId(savedState.scheduleStopId);
+          setSelectedStopId(savedState.selectedStopId);
+          if (savedState.selectedStopData) {
+            setSelectedStop(savedState.selectedStopData);
+          }
+          if (savedState.scheduleData) {
+            setScheduleData(savedState.scheduleData);
+          }
+          if (savedState.walkingInfo) {
+            setWalkingInfo(savedState.walkingInfo);
+          }
+          if (savedState.lastFetchTime) {
+            setLastFetchTime(new Date(savedState.lastFetchTime));
+          }
+        }
+
+        // Restore search filters
+        if (savedState.searchQuery !== undefined) {
+          setSearchQuery(savedState.searchQuery);
+        }
+        if (savedState.showFavoritesOnly !== undefined) {
+          setShowFavoritesOnly(savedState.showFavoritesOnly);
+        }
+        if (savedState.currentPage !== undefined) {
+          setCurrentPage(savedState.currentPage);
         }
       }
       setStateLoaded(true);
@@ -81,6 +103,12 @@ export default function BusStopsPage({
       scheduleStopId: number | null;
       selectedStopId: number | null;
       selectedStopData: BusStopData | null;
+      searchQuery: string;
+      showFavoritesOnly: boolean;
+      currentPage: number;
+      scheduleData?: any[];
+      walkingInfo?: any;
+      lastFetchTime?: string;
     }) => {
       persistenceUtils.setItem(persistenceKeys.busStopsPage, state);
     },
@@ -91,6 +119,16 @@ export default function BusStopsPage({
   const clearScheduleState = useCallback(() => {
     persistenceUtils.removeItem(persistenceKeys.busStopsPage);
   }, []);
+
+  // Handle schedule data changes from BusScheduleCard
+  const handleScheduleDataChange = useCallback(
+    (data: { scheduleData: any[]; walkingInfo: any; lastFetchTime: Date }) => {
+      setScheduleData(data.scheduleData);
+      setWalkingInfo(data.walkingInfo);
+      setLastFetchTime(data.lastFetchTime);
+    },
+    []
+  );
 
   const fetchFavorites = useCallback(async () => {
     try {
@@ -200,6 +238,9 @@ export default function BusStopsPage({
       setShowSchedule(false);
       setScheduleStopId(null);
       setSelectedStop(null);
+      setScheduleData([]);
+      setWalkingInfo(null);
+      setLastFetchTime(null);
       clearScheduleState();
     }
   }, [searchQuery, busStops, showFavoritesOnly, favorites]);
@@ -212,6 +253,12 @@ export default function BusStopsPage({
         scheduleStopId,
         selectedStopId,
         selectedStopData: selectedStop,
+        searchQuery,
+        showFavoritesOnly,
+        currentPage,
+        scheduleData,
+        walkingInfo,
+        lastFetchTime: lastFetchTime?.toISOString(),
       });
     }
   }, [
@@ -219,6 +266,12 @@ export default function BusStopsPage({
     scheduleStopId,
     selectedStopId,
     selectedStop,
+    searchQuery,
+    showFavoritesOnly,
+    currentPage,
+    scheduleData,
+    walkingInfo,
+    lastFetchTime,
     saveScheduleState,
     stateLoaded,
   ]);
@@ -234,6 +287,9 @@ export default function BusStopsPage({
         setSelectedStopId(null);
         setShowSchedule(false);
         setScheduleStopId(null);
+        setScheduleData([]);
+        setWalkingInfo(null);
+        setLastFetchTime(null);
         clearScheduleState();
       }
     }
@@ -286,6 +342,9 @@ export default function BusStopsPage({
     setShowSchedule(false);
     setScheduleStopId(null);
     setSelectedStop(null);
+    setScheduleData([]);
+    setWalkingInfo(null);
+    setLastFetchTime(null);
     clearScheduleState();
   };
 
@@ -569,11 +628,18 @@ export default function BusStopsPage({
               }`}
               user={user}
               favorites={favorites}
+              initialScheduleData={scheduleData}
+              initialWalkingInfo={walkingInfo}
+              initialLastFetchTime={lastFetchTime || undefined}
+              onDataChange={handleScheduleDataChange}
               onClose={() => {
                 setShowSchedule(false);
                 setScheduleStopId(null);
                 setSelectedStopId(null);
                 setSelectedStop(null);
+                setScheduleData([]);
+                setWalkingInfo(null);
+                setLastFetchTime(null);
                 clearScheduleState();
               }}
             />
