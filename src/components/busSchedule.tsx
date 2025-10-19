@@ -47,7 +47,7 @@ export default function BusSchedule({
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [isSwipeActive, setIsSwipeActive] = useState(false);
-  const { showError } = useNotification();
+  const { showError, showSuccess } = useNotification();
 
   // Fetch favorites and all bus stops on component mount
   useEffect(() => {
@@ -145,6 +145,11 @@ export default function BusSchedule({
 
       if (destinations.length === 0) {
         setNearbyFavorites([]);
+        setNearbyCollapsed(false);
+        setLastNearbySearch(new Date());
+        showSuccess(
+          "No favorite stops available. Add some from the Bus Stops tab first."
+        );
         return;
       }
 
@@ -180,9 +185,11 @@ export default function BusSchedule({
           `Found ${nearbyWithWalkingDistance.length} favorites within walking distance`
         );
 
-        // Auto-expand if favorites were found
+        // Always expand to show results (or empty state)
+        setNearbyCollapsed(false);
+        setLastNearbySearch(new Date());
+
         if (nearbyWithWalkingDistance.length > 0) {
-          setNearbyCollapsed(false);
           // Automatically fetch schedules for all nearby stops
           await fetchSchedulesForNearbyStops(nearbyWithWalkingDistance);
         }
@@ -228,9 +235,11 @@ export default function BusSchedule({
           `Found ${sortedNearby.length} favorites within radius using fallback method`
         );
 
-        // Auto-expand if favorites were found
+        // Always expand to show results (or empty state)
+        setNearbyCollapsed(false);
+        setLastNearbySearch(new Date());
+
         if (sortedNearby.length > 0) {
-          setNearbyCollapsed(false);
           // Automatically fetch schedules for all nearby stops
           await fetchSchedulesForNearbyStops(sortedNearby);
         }
@@ -493,9 +502,11 @@ export default function BusSchedule({
         `Found ${stopsWithDistance.length} non-favorite stops within radius`
       );
 
-      // Auto-expand if stops were found
+      // Always expand to show results (or empty state)
+      setAllStopsCollapsed(false);
+      setLastAllStopsSearch(new Date());
+
       if (stopsWithDistance.length > 0) {
-        setAllStopsCollapsed(false);
         // Automatically fetch schedules for all nearby stops
         await fetchSchedulesForAllStops(stopsWithDistance);
       }
@@ -680,8 +691,8 @@ export default function BusSchedule({
             GRT Stop Schedule
           </h1>
           <p className="text-sm text-gray-300">
-              To search for individual bus stop schedules, 
-              use the <strong>Bus Stops</strong> tab.
+            To search for individual bus stop schedules, use the{" "}
+            <strong>Bus Stops</strong> tab.
           </p>
         </div>
 
@@ -837,48 +848,53 @@ export default function BusSchedule({
                 </div>
               )}
 
-              {!nearbyCollapsed && nearbyFavorites.length === 0 && !locationLoading && lastNearbySearch && (
-                <div className="bg-gray-700 rounded-lg p-6 border border-gray-600">
-                  <div className="text-center text-gray-400">
-                    <svg
-                      className="w-12 h-12 mx-auto mb-4 text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                    </svg>
-                    <h3 className="text-lg font-semibold text-white mb-2">
-                      No Favorite Stops Found Nearby
-                    </h3>
-                    <p className="text-sm">
-                      No favorite stops were found within {user?.searchRadius || 500}m of your location.
-                    </p>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Try increasing your search radius in your profile settings or add more favorite stops from the Bus Stops tab.
-                    </p>
+              {!nearbyCollapsed &&
+                nearbyFavorites.length === 0 &&
+                !locationLoading &&
+                lastNearbySearch && (
+                  <div className="mt-2 bg-gray-700 rounded-lg p-6 border border-gray-600">
+                    <div className="text-center text-gray-400">
+                      <svg
+                        className="w-12 h-12 mx-auto mb-4 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                      </svg>
+                      <h3 className="text-lg font-semibold text-white mb-2">
+                        No Favorite Stops Found Nearby
+                      </h3>
+                      <p className="text-sm mt-2">
+                        Try increasing your search radius in your profile
+                        settings or add more favorite stops from the Bus Stops
+                        tab.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {!nearbyCollapsed && nearbyFavorites.length === 0 && !locationLoading && !lastNearbySearch && (
-                <div className="text-center py-4 text-gray-400">
-                  {favorites.length === 0
-                    ? "No favorite stops found. Add some from the Bus Stops tab first."
-                    : "Click 'Find Nearby Stops' to see favorite stops near your location."}
-                </div>
-              )}
+              {!nearbyCollapsed &&
+                nearbyFavorites.length === 0 &&
+                !locationLoading &&
+                !lastNearbySearch && (
+                  <div className="text-center py-4 text-gray-400">
+                    {favorites.length === 0
+                      ? "No favorite stops found. Add some from the Bus Stops tab first."
+                      : "Click 'Find Nearby Stops' to see favorite stops near your location."}
+                  </div>
+                )}
             </div>
           )}
 
@@ -975,46 +991,52 @@ export default function BusSchedule({
                 </div>
               )}
 
-              {!allStopsCollapsed && allNearbyStops.length === 0 && !locationLoading && lastAllStopsSearch && (
-                <div className="bg-gray-700 rounded-lg p-6 border border-gray-600">
-                  <div className="text-center text-gray-400">
-                    <svg
-                      className="w-12 h-12 mx-auto mb-4 text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                    </svg>
-                    <h3 className="text-lg font-semibold text-white mb-2">
-                      No Bus Stops Found Nearby
-                    </h3>
-                    <p className="text-sm">
-                      No bus stops were found within {user?.searchRadius || 500}m of your location.
-                    </p>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Try increasing your search radius in your profile settings or search for specific stops in the Bus Stops tab.
-                    </p>
+              {!allStopsCollapsed &&
+                allNearbyStops.length === 0 &&
+                !locationLoading &&
+                lastAllStopsSearch && (
+                  <div className="mt-2 bg-gray-700 rounded-lg p-6 border border-gray-600">
+                    <div className="text-center text-gray-400">
+                      <svg
+                        className="w-12 h-12 mx-auto mb-4 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                      </svg>
+                      <h3 className="text-lg font-semibold text-white mb-2">
+                        No Bus Stops Found Nearby
+                      </h3>
+                      <p className="text-sm mt-2">
+                        Try increasing your search radius in your profile
+                        settings or search for specific stops in the Bus Stops
+                        tab.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {!allStopsCollapsed && allNearbyStops.length === 0 && !locationLoading && !lastAllStopsSearch && (
-                <div className="text-center py-4 text-gray-400">
-                  Click &apos;Find All Nearby Stops&apos; to see all bus stops near your location.
-                </div>
-              )}
+              {!allStopsCollapsed &&
+                allNearbyStops.length === 0 &&
+                !locationLoading &&
+                !lastAllStopsSearch && (
+                  <div className="text-center py-4 text-gray-400">
+                    Click &apos;Find All Nearby Stops&apos; to see all bus stops
+                    near your location.
+                  </div>
+                )}
             </div>
           )}
 

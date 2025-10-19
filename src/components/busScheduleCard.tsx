@@ -2,11 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useNotification } from "@/contexts/notificationContext";
+import { getCurrentLocation, extractCoordinates } from "@/lib/locationUtils";
+import { calculateBatchWalkingDistances, calculateHaversineDistance } from "@/lib/services/routesApiService";
+import { busStopCache } from "@/lib/services/busStopCache";
 
 interface BusScheduleCardProps {
   stopId: number;
   stopName: string;
   onClose: () => void;
+  user?: any;
+  favorites?: any[];
 }
 
 interface ScheduleItem {
@@ -20,16 +25,117 @@ export default function BusScheduleCard({
   stopId,
   stopName,
   onClose,
+  user,
+  favorites = [],
 }: BusScheduleCardProps) {
   const [loading, setLoading] = useState(false);
   const [scheduleData, setScheduleData] = useState<ScheduleItem[]>([]);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [walkingInfo, setWalkingInfo] = useState<{
+    distance: number;
+    duration?: number;
+    isFavorite: boolean;
+  } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
   const { showError } = useNotification();
 
-  // Fetch schedule data when component mounts
+  // Fetch schedule data and walking info when component mounts
   useEffect(() => {
     fetchSchedule();
+    fetchWalkingInfo();
   }, [stopId]);
+
+  const fetchWalkingInfo = async () => {
+    try {
+      setLocationLoading(true);
+      
+      // Get current location
+      const userLocation = await getCurrentLocation();
+      
+      // Get bus stop data
+      const busStops = await busStopCache.getBusStops();
+      const busStop = busStops.find(stop => stop.StopID === stopId);
+      
+      if (!busStop) {
+        console.warn(`Bus stop ${stopId} not found`);
+        return;
+      }
+
+      const coordinates = extractCoordinates(busStop);
+      if (!coordinates) {
+        console.warn(`Coordinates not found for stop ${stopId}`);
+        return;
+      }
+
+      // Check if this is a favorite stop
+      const isFavorite = favorites.some(fav => fav.stopId === stopId);
+
+      if (isFavorite) {
+        // Use Google Routes API for walking distance
+        try {
+          const destinations = [{
+            id: stopId,
+            location: coordinates,
+            name: stopName,
+          }];
+
+          const walkingDistances = await calculateBatchWalkingDistances(
+            userLocation,
+            destinations,
+            user?.searchRadius || 5000 // Use larger radius for single stop
+          );
+
+          if (walkingDistances.length > 0) {
+            setWalkingInfo({
+              distance: walkingDistances[0].distance,
+              duration: walkingDistances[0].duration,
+              isFavorite: true,
+            });
+          } else {
+            // Fallback to Haversine if Routes API fails
+            const distance = calculateHaversineDistance(
+              userLocation.latitude,
+              userLocation.longitude,
+              coordinates.latitude,
+              coordinates.longitude
+            );
+            setWalkingInfo({
+              distance: Math.round(distance),
+              isFavorite: true,
+            });
+          }
+        } catch (error) {
+          console.warn("Google Routes API failed, using Haversine distance");
+          const distance = calculateHaversineDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            coordinates.latitude,
+            coordinates.longitude
+          );
+          setWalkingInfo({
+            distance: Math.round(distance),
+            isFavorite: true,
+          });
+        }
+      } else {
+        // Use Haversine distance for non-favorite stops
+        const distance = calculateHaversineDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          coordinates.latitude,
+          coordinates.longitude
+        );
+        setWalkingInfo({
+          distance: Math.round(distance),
+          isFavorite: false,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching walking info:", error);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
   const fetchSchedule = async () => {
     try {
@@ -64,6 +170,50 @@ export default function BusScheduleCard({
 
   const handleRefresh = () => {
     fetchSchedule();
+  };
+
+  const handleDirections = async () => {
+    try {
+      // Get current location
+      const userLocation = await getCurrentLocation();
+      
+      // Get bus stop data
+      const busStops = await busStopCache.getBusStops();
+      const busStop = busStops.find(stop => stop.StopID === stopId);
+      
+      if (!busStop) {
+        showError("Bus stop not found");
+        return;
+      }
+
+      const coordinates = extractCoordinates(busStop);
+      if (!coordinates) {
+        showError("Stop coordinates not available");
+        return;
+      }
+
+      const { latitude: userLat, longitude: userLng } = userLocation;
+      const { latitude: stopLat, longitude: stopLng } = coordinates;
+
+      // Use different URL format for mobile vs desktop
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      );
+
+      let url;
+      if (isMobile) {
+        // Mobile-friendly format that works better with Google Maps app
+        url = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${stopLat},${stopLng}&travelmode=walking`;
+      } else {
+        // Desktop format
+        url = `https://www.google.com/maps/dir/${userLat},${userLng}/${stopLat},${stopLng}/@${stopLat},${stopLng},17z/data=!3m1!4b1!4m2!4m1!3e2`;
+      }
+
+      window.open(url, "_blank");
+    } catch (error) {
+      console.error("Error generating directions:", error);
+      showError("Unable to generate directions. Please check location access.");
+    }
   };
 
   if (loading && !scheduleData.length) {
@@ -103,9 +253,31 @@ export default function BusScheduleCard({
   return (
     <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-white font-semibold text-lg">
-          Bus Schedule - {stopName}
-        </h3>
+        <div className="flex-1">
+          <h3 className="text-white font-semibold text-lg">
+            Bus Schedule - {stopName}
+          </h3>
+          <p className="text-sm text-gray-400">Stop ID: {stopId}</p>
+          
+          {/* Walking Info Display */}
+          {walkingInfo && (
+            <div className="mt-2 flex items-center gap-4 text-sm text-gray-300">
+              <span className="flex items-center gap-1">
+                🚶 {walkingInfo.distance}
+              </span>
+              <span className="flex items-center gap-1">
+                ⏱️ {walkingInfo.duration}
+              </span>
+              <button
+                onClick={handleDirections}
+                className="text-blue-400 hover:text-blue-300 underline flex items-center gap-1 transition-colors"
+              >
+                🗺️ Get Directions
+              </button>
+            </div>
+          )}
+        </div>
+        
         <div className="flex items-center gap-2">
           {lastFetchTime && (
             <span className="text-xs text-gray-400">

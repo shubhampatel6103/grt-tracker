@@ -26,11 +26,44 @@ export default function BusStopsPage({
   const [searchQuery, setSearchQuery] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedStop, setSelectedStop] = useState<BusStopData | null>(null);
+
+  // Initialize schedule state from localStorage
+  const initializeScheduleState = () => {
+    try {
+      const savedScheduleState = localStorage.getItem(
+        "busStopsPage_scheduleState"
+      );
+      if (savedScheduleState) {
+        const parsed = JSON.parse(savedScheduleState);
+        return {
+          showSchedule: parsed.showSchedule || false,
+          scheduleStopId: parsed.scheduleStopId || null,
+          selectedStopId: parsed.selectedStopId || null,
+          selectedStopData: parsed.selectedStopData || null,
+        };
+      }
+    } catch (error) {
+      console.error("Error parsing saved schedule state:", error);
+    }
+    return {
+      showSchedule: false,
+      scheduleStopId: null,
+      selectedStopId: null,
+      selectedStopData: null,
+    };
+  };
+
+  const initialScheduleState = initializeScheduleState();
+
+  const [selectedStop, setSelectedStop] = useState<BusStopData | null>(
+    initialScheduleState.selectedStopData
+  );
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [favorites, setFavorites] = useState<FavoriteBusStop[]>([]);
   const [showMap, setShowMap] = useState(false);
-  const [selectedStopId, setSelectedStopId] = useState<number | null>(null);
+  const [selectedStopId, setSelectedStopId] = useState<number | null>(
+    initialScheduleState.selectedStopId
+  );
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -47,11 +80,44 @@ export default function BusStopsPage({
     stop: BusStopData | null;
   }>({ isOpen: false, stop: null });
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [scheduleStopId, setScheduleStopId] = useState<number | null>(null);
+  const [showSchedule, setShowSchedule] = useState(
+    initialScheduleState.showSchedule
+  );
+  const [scheduleStopId, setScheduleStopId] = useState<number | null>(
+    initialScheduleState.scheduleStopId
+  );
   const router = useRouter();
 
   const itemsPerPage = isSmallScreen ? 10 : 20;
+
+  // Save schedule state to localStorage
+  const saveScheduleState = useCallback(
+    (state: {
+      showSchedule: boolean;
+      scheduleStopId: number | null;
+      selectedStopId: number | null;
+      selectedStopData: BusStopData | null;
+    }) => {
+      try {
+        localStorage.setItem(
+          "busStopsPage_scheduleState",
+          JSON.stringify(state)
+        );
+      } catch (error) {
+        console.error("Error saving schedule state:", error);
+      }
+    },
+    []
+  );
+
+  // Clear schedule state from localStorage
+  const clearScheduleState = useCallback(() => {
+    try {
+      localStorage.removeItem("busStopsPage_scheduleState");
+    } catch (error) {
+      console.error("Error clearing schedule state:", error);
+    }
+  }, []);
 
   const fetchFavorites = useCallback(async () => {
     try {
@@ -161,8 +227,41 @@ export default function BusStopsPage({
       setShowSchedule(false);
       setScheduleStopId(null);
       setSelectedStop(null);
+      clearScheduleState();
     }
   }, [searchQuery, busStops, showFavoritesOnly, favorites]);
+
+  // Save schedule state to localStorage whenever it changes
+  useEffect(() => {
+    saveScheduleState({
+      showSchedule,
+      scheduleStopId,
+      selectedStopId,
+      selectedStopData: selectedStop,
+    });
+  }, [
+    showSchedule,
+    scheduleStopId,
+    selectedStopId,
+    selectedStop,
+    saveScheduleState,
+  ]);
+
+  // Restore selected stop data when bus stops are loaded and we have a saved selected stop ID
+  useEffect(() => {
+    if (busStops.length > 0 && selectedStopId && !selectedStop) {
+      const foundStop = busStops.find((stop) => stop.StopID === selectedStopId);
+      if (foundStop) {
+        setSelectedStop(foundStop);
+      } else {
+        // If the saved stop is not found, clear the persisted state
+        setSelectedStopId(null);
+        setShowSchedule(false);
+        setScheduleStopId(null);
+        clearScheduleState();
+      }
+    }
+  }, [busStops, selectedStopId, selectedStop, clearScheduleState]);
 
   // Get user location when map is first shown
   useEffect(() => {
@@ -174,14 +273,6 @@ export default function BusStopsPage({
         });
     }
   }, [showMap, userLocation]);
-
-  // Clear selection when map is hidden, but preserve schedule state
-  useEffect(() => {
-    if (!showMap) {
-      setSelectedStopId(null);
-      // Don't clear schedule when map is hidden - let users keep it open
-    }
-  }, [showMap]);
 
   const handleStopSelect = (stop: BusStopData) => {
     setSelectedStop(stop);
@@ -219,6 +310,7 @@ export default function BusStopsPage({
     setShowSchedule(false);
     setScheduleStopId(null);
     setSelectedStop(null);
+    clearScheduleState();
   };
 
   const isStopFavorited = (stopId: number): boolean => {
@@ -499,11 +591,14 @@ export default function BusStopsPage({
               stopName={`${selectedStop.Street || "Unknown"} & ${
                 selectedStop.CrossStreet || "Unknown"
               }`}
+              user={user}
+              favorites={favorites}
               onClose={() => {
                 setShowSchedule(false);
                 setScheduleStopId(null);
                 setSelectedStopId(null);
                 setSelectedStop(null);
+                clearScheduleState();
               }}
             />
           </div>
