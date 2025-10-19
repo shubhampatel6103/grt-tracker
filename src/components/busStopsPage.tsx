@@ -6,7 +6,7 @@ import { BusStopData, FavoriteBusStop } from "@/types/busStop";
 import { busStopCache } from "@/lib/services/busStopCache";
 import FavoriteModal from "./favoriteModal";
 import ConfirmDeleteModal from "./confirmDeleteModal";
-import BusSchedule from "./busSchedule";
+import BusScheduleCard from "./busScheduleCard";
 import { useNotification } from "@/contexts/notificationContext";
 import { getCurrentLocation, extractCoordinates } from "@/lib/locationUtils";
 import BusStopMap from "./busStopMap";
@@ -151,10 +151,17 @@ export default function BusStopsPage({
 
     setFilteredStops(filtered);
     setCurrentPage(1);
-    // Clear selection when search changes
-    setSelectedStopId(null);
-    setShowSchedule(false);
-    setScheduleStopId(null);
+
+    // Only clear selection if the currently selected stop is not in the filtered results
+    if (
+      selectedStopId &&
+      !filtered.some((stop) => stop.StopID === selectedStopId)
+    ) {
+      setSelectedStopId(null);
+      setShowSchedule(false);
+      setScheduleStopId(null);
+      setSelectedStop(null);
+    }
   }, [searchQuery, busStops, showFavoritesOnly, favorites]);
 
   // Get user location when map is first shown
@@ -168,12 +175,11 @@ export default function BusStopsPage({
     }
   }, [showMap, userLocation]);
 
-  // Clear selection when map is hidden
+  // Clear selection when map is hidden, but preserve schedule state
   useEffect(() => {
     if (!showMap) {
       setSelectedStopId(null);
-      setShowSchedule(false);
-      setScheduleStopId(null);
+      // Don't clear schedule when map is hidden - let users keep it open
     }
   }, [showMap]);
 
@@ -186,10 +192,7 @@ export default function BusStopsPage({
     // Focus map on selected stop
     focusMapOnStop(stop);
 
-    if (onStopSelect) {
-      onStopSelect(stop.StopID);
-    }
-    // No longer navigate to dashboard - show schedule inline instead
+    // No redirection - show schedule inline instead
   };
 
   const focusMapOnStop = (stop: BusStopData) => {
@@ -215,6 +218,7 @@ export default function BusStopsPage({
     setSelectedStopId(null);
     setShowSchedule(false);
     setScheduleStopId(null);
+    setSelectedStop(null);
   };
 
   const isStopFavorited = (stopId: number): boolean => {
@@ -488,37 +492,20 @@ export default function BusStopsPage({
         )}
 
         {/* Bus Schedule Section */}
-        {showSchedule && scheduleStopId && (
-          <div className="mb-6 bg-gray-800 rounded-lg border border-gray-700 p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-semibold text-lg">
-                Bus Schedule for Stop #{scheduleStopId}
-              </h3>
-              <button
-                onClick={() => {
-                  setShowSchedule(false);
-                  setScheduleStopId(null);
-                  setSelectedStopId(null);
-                }}
-                className="text-gray-400 hover:text-white transition-colors"
-                title="Close schedule"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            <BusSchedule selectedStopId={scheduleStopId} user={user} />
+        {showSchedule && scheduleStopId && selectedStop && (
+          <div className="mb-6">
+            <BusScheduleCard
+              stopId={scheduleStopId}
+              stopName={`${selectedStop.Street || "Unknown"} & ${
+                selectedStop.CrossStreet || "Unknown"
+              }`}
+              onClose={() => {
+                setShowSchedule(false);
+                setScheduleStopId(null);
+                setSelectedStopId(null);
+                setSelectedStop(null);
+              }}
+            />
           </div>
         )}
 
@@ -608,7 +595,8 @@ export default function BusStopsPage({
                   console.log("Stop clicked from table:", stop);
                 }}
                 className={`cursor-pointer bg-gray-800 rounded-lg p-4 border transition-all duration-300 ${
-                  selectedStopId === stop.StopID
+                  selectedStopId === stop.StopID ||
+                  scheduleStopId === stop.StopID
                     ? "border-blue-500 bg-blue-900/20 ring-2 ring-blue-500/50"
                     : "border-gray-700 hover:border-gray-600"
                 }`}
@@ -717,7 +705,8 @@ export default function BusStopsPage({
                         console.log("Stop clicked from table:", stop);
                       }}
                       className={`cursor-pointer transition-all duration-300 ${
-                        selectedStopId === stop.StopID
+                        selectedStopId === stop.StopID ||
+                        scheduleStopId === stop.StopID
                           ? "bg-blue-900/30 hover:bg-blue-900/40 ring-2 ring-blue-500/50"
                           : "hover:bg-gray-700"
                       }`}

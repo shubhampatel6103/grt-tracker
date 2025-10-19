@@ -3,6 +3,46 @@ import { ObjectId } from "mongodb";
 import { getCollections } from "@/lib/mongodb";
 import { UpdateUserData } from "@/types/user";
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { users } = await getCollections();
+    const userId = (await params).id;
+
+    // Validate ObjectId
+    if (!ObjectId.isValid(userId)) {
+      return NextResponse.json(
+        { error: "Invalid user ID" },
+        { status: 400 }
+      );
+    }
+
+    // Fetch user data (excluding password)
+    const user = await users.findOne(
+      { _id: new ObjectId(userId) },
+      { projection: { password: 0 } }
+    );
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(user);
+
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

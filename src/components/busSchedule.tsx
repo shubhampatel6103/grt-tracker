@@ -20,18 +20,14 @@ export default function BusSchedule({
   user,
 }: BusScheduleProps) {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<any>(null);
   const [selectedStop, setSelectedStop] = useState<BusStop | null>(null);
-  const [scheduleData, setScheduleData] = useState<{ [stopId: string]: any }>(
-    {}
-  );
   const [favoriteScheduleData, setFavoriteScheduleData] = useState<{
     [stopId: string]: any;
   }>({});
   const [allStopsScheduleData, setAllStopsScheduleData] = useState<{
     [stopId: string]: any;
   }>({});
-  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  // Removed lastFetchTime since individual search was removed
   const [lastFavoriteFetchTime, setLastFavoriteFetchTime] =
     useState<Date | null>(null);
   const [lastAllStopsFetchTime, setLastAllStopsFetchTime] =
@@ -288,8 +284,7 @@ export default function BusSchedule({
         throw new Error(result.error || "Failed to fetch data");
       }
 
-      setData(result);
-      // Also add to favorites schedule data for the new system
+      // Add to favorites schedule data for the new system
       setFavoriteScheduleData((prev) => ({
         ...prev,
         [stop.stopNumber]: {
@@ -298,7 +293,6 @@ export default function BusSchedule({
           fetchTime: new Date(),
         },
       }));
-      setLastFetchTime(new Date());
       setLastFavoriteFetchTime(new Date());
       // Switch to favorites tab to show the result
       setActiveTab("favorites");
@@ -310,11 +304,7 @@ export default function BusSchedule({
     }
   };
 
-  const handleScrape = async (): Promise<void> => {
-    if (selectedStop) {
-      await handleScrapeWithStop(selectedStop);
-    }
-  };
+  // handleScrape function removed since individual search UI was removed
 
   const fetchStopScheduleForFavorites = async (stop: BusStop) => {
     try {
@@ -685,66 +675,14 @@ export default function BusSchedule({
   return (
     <main className="min-h-screen p-2 sm:p-4 md:p-6 lg:p-8 bg-gray-900 flex flex-col">
       <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-4 sm:mb-6 md:mb-8 text-center sm:text-left text-white">
-          GRT Stop Schedule
-        </h1>
-
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6">
-          <select
-            value={selectedStop ? selectedStop.stopNumber : ""}
-            onChange={(e) => {
-              const stopId = parseInt(e.target.value);
-              const favoriteStop = favorites.find(
-                (fav) => fav.stopId === stopId
-              );
-              if (favoriteStop) {
-                const stopData = allBusStops.find(
-                  (s) => s.StopID === favoriteStop.stopId
-                );
-                if (stopData) {
-                  const mockStop: BusStop = {
-                    stopNumber: stopData.StopID.toString(),
-                    stopName: favoriteStop.customName,
-                    direction: `${stopData.Street || "Unknown"} & ${
-                      stopData.CrossStreet || "Unknown"
-                    }`,
-                    routeNumber: [],
-                  };
-                  setSelectedStop(mockStop);
-                }
-              }
-            }}
-            className="border border-gray-600 bg-gray-800 text-white rounded px-3 py-2.5 sm:py-2 text-sm sm:text-base w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="" disabled>
-              {favorites.length > 0
-                ? "Select a favorite stop"
-                : "No favorite stops - add some from Bus Stops tab"}
-            </option>
-            {/* Only show favorite stops */}
-            {favorites.map((favorite) => {
-              const stopData = allBusStops.find(
-                (s) => s.StopID === favorite.stopId
-              );
-              if (!stopData) return null;
-              return (
-                <option
-                  key={favorite.stopId}
-                  value={favorite.stopId.toString()}
-                >
-                  {favorite.customName} - {stopData.Street} &{" "}
-                  {stopData.CrossStreet}
-                </option>
-              );
-            })}
-          </select>
-          <button
-            onClick={handleScrape}
-            disabled={loading || !selectedStop}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 sm:py-2 px-4 rounded disabled:opacity-50 text-sm sm:text-base whitespace-nowrap transition-colors"
-          >
-            {loading ? "Loading..." : "Fetch Schedule"}
-          </button>
+        <div className="mb-4 sm:mb-6 md:mb-8">
+          <h1 className="mb-1 text-xl sm:text-2xl md:text-3xl font-bold text-center sm:text-left text-white">
+            GRT Stop Schedule
+          </h1>
+          <p className="text-sm text-gray-300">
+              To search for individual bus stop schedules, 
+              use the <strong>Bus Stops</strong> tab.
+          </p>
         </div>
 
         {/* Tab Navigation */}
@@ -899,11 +837,44 @@ export default function BusSchedule({
                 </div>
               )}
 
-              {!nearbyCollapsed && nearbyFavorites.length === 0 && (
+              {!nearbyCollapsed && nearbyFavorites.length === 0 && !locationLoading && lastNearbySearch && (
+                <div className="bg-gray-700 rounded-lg p-6 border border-gray-600">
+                  <div className="text-center text-gray-400">
+                    <svg
+                      className="w-12 h-12 mx-auto mb-4 text-gray-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                    <h3 className="text-lg font-semibold text-white mb-2">
+                      No Favorite Stops Found Nearby
+                    </h3>
+                    <p className="text-sm">
+                      No favorite stops were found within {user?.searchRadius || 500}m of your location.
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Try increasing your search radius in your profile settings or add more favorite stops from the Bus Stops tab.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {!nearbyCollapsed && nearbyFavorites.length === 0 && !locationLoading && !lastNearbySearch && (
                 <div className="text-center py-4 text-gray-400">
-                  {locationLoading
-                    ? "Getting your location..."
-                    : favorites.length === 0
+                  {favorites.length === 0
                     ? "No favorite stops found. Add some from the Bus Stops tab first."
                     : "Click 'Find Nearby Stops' to see favorite stops near your location."}
                 </div>
@@ -1004,11 +975,44 @@ export default function BusSchedule({
                 </div>
               )}
 
-              {!allStopsCollapsed && allNearbyStops.length === 0 && (
+              {!allStopsCollapsed && allNearbyStops.length === 0 && !locationLoading && lastAllStopsSearch && (
+                <div className="bg-gray-700 rounded-lg p-6 border border-gray-600">
+                  <div className="text-center text-gray-400">
+                    <svg
+                      className="w-12 h-12 mx-auto mb-4 text-gray-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                    <h3 className="text-lg font-semibold text-white mb-2">
+                      No Bus Stops Found Nearby
+                    </h3>
+                    <p className="text-sm">
+                      No bus stops were found within {user?.searchRadius || 500}m of your location.
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Try increasing your search radius in your profile settings or search for specific stops in the Bus Stops tab.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {!allStopsCollapsed && allNearbyStops.length === 0 && !locationLoading && !lastAllStopsSearch && (
                 <div className="text-center py-4 text-gray-400">
-                  {locationLoading
-                    ? "Getting your location..."
-                    : "Click 'Find All Nearby Stops' to see all bus stops near your location."}
+                  Click &apos;Find All Nearby Stops&apos; to see all bus stops near your location.
                 </div>
               )}
             </div>

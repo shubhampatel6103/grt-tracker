@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import BusSchedule from "./busSchedule";
 import BusStopsPage from "./busStopsPage";
 import ProfilePage from "./profilePage";
+import { authUtils } from "@/lib/auth";
 
 interface DashboardProps {
   user: any;
@@ -13,32 +14,19 @@ interface DashboardProps {
 
 export default function Dashboard({ user, onUserUpdate }: DashboardProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<
     "dashboard" | "bus-stops" | "profile"
   >("dashboard");
-  const [selectedStopId, setSelectedStopId] = useState<number | null>(null);
+  // Remove selectedStopId since we no longer use URL parameters for schedule display
 
-  useEffect(() => {
-    // Check if there's a stopId in the URL parameters
-    const stopId = searchParams.get("stopId");
-    if (stopId) {
-      setSelectedStopId(parseInt(stopId));
-      setActiveTab("dashboard");
-    }
-  }, [searchParams]);
+  // Remove URL parameter handling since we no longer redirect to dashboard for schedule display
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    authUtils.clearAuth();
     router.push("/");
   };
 
-  const handleStopSelect = (stopId: number) => {
-    setSelectedStopId(stopId);
-    setActiveTab("dashboard");
-    // Update URL without page reload
-    router.push(`/dashboard?stopId=${stopId}`);
-  };
+  // Remove handleStopSelect since we no longer redirect to dashboard for schedule display
 
   return (
     <div>
@@ -104,9 +92,9 @@ export default function Dashboard({ user, onUserUpdate }: DashboardProps) {
 
       {/* Main content */}
       {activeTab === "dashboard" ? (
-        <BusSchedule selectedStopId={selectedStopId} user={user} />
+        <BusSchedule user={user} />
       ) : activeTab === "bus-stops" ? (
-        <BusStopsPage user={user} onStopSelect={handleStopSelect} />
+        <BusStopsPage user={user} />
       ) : (
         <ProfilePage user={user} onUserUpdate={onUserUpdate} />
       )}

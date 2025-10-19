@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useNotification } from "@/contexts/notificationContext";
+import { authUtils } from "@/lib/auth";
 
 interface LoginFormProps {
   onSwitchToSignup: () => void;
@@ -39,8 +40,8 @@ export default function LoginForm({
         throw new Error(result.error || "Login failed");
       }
 
-      // Store user data in localStorage
-      localStorage.setItem("user", JSON.stringify(result.user));
+      // Store only essential authentication data in localStorage
+      authUtils.setAuthData(result.user._id, result.user.username);
 
       // Notify parent component of successful login
       if (onLoginSuccess) {

@@ -145,6 +145,12 @@ export default function ProfilePage({ user, onUserUpdate }: ProfilePageProps) {
         if (onUserUpdate) {
           onUserUpdate(updatedUser);
         }
+        // Emit event for cross-tab synchronization
+        window.dispatchEvent(
+          new CustomEvent("userDataUpdated", {
+            detail: updatedUser,
+          })
+        );
       } else {
         const error = await response.json();
         throw new Error(error.error || "Failed to update search radius");

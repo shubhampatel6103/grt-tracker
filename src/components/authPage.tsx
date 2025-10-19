@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import LoginForm from "./loginForm";
 import SignupForm from "./signupForm";
+import { authUtils } from "@/lib/auth";
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,13 +13,12 @@ export default function AuthPage() {
 
   useEffect(() => {
     // Check if user is already logged in
-    const userData = localStorage.getItem("user");
-    if (userData) {
+    if (authUtils.isAuthenticated()) {
       // Redirect to dashboard page
       router.push("/dashboard");
-    } else {
-      setLoading(false);
+      return;
     }
+    setLoading(false);
   }, [router]);
 
   const handleLoginSuccess = () => {
