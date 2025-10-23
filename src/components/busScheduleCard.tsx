@@ -27,6 +27,7 @@ interface BusScheduleCardProps {
     walkingInfo: any;
     lastFetchTime: Date;
   }) => void;
+  displayName?: string;
 }
 
 interface ScheduleItem {
@@ -39,6 +40,7 @@ interface ScheduleItem {
 export default function BusScheduleCard({
   stopId,
   stopName,
+  displayName,
   onClose,
   user,
   favorites = [],
@@ -261,7 +263,7 @@ export default function BusScheduleCard({
       <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-white font-semibold text-lg">
-            Loading schedule for {stopName}...
+            Loading schedule for {displayName || stopName}...
           </h3>
           <button
             onClick={onClose}
@@ -295,7 +297,7 @@ export default function BusScheduleCard({
       <div className="flex items-center justify-between mb-4">
         <div className="flex-1">
           <h3 className="text-white font-semibold text-lg">
-            Bus Schedule - {stopName}
+            Bus Schedule - {displayName || stopName}
           </h3>
           <p className="text-sm text-gray-400">Stop ID: {stopId}</p>
 

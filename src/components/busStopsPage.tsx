@@ -359,6 +359,12 @@ export default function BusStopsPage({ user }: BusStopsPageProps) {
     return favorites.some((fav) => fav.stopId === stopId);
   };
 
+  // Return favorite custom name for a stop if it exists, otherwise null
+  const getFavoriteName = (stopId: number): string | null => {
+    const fav = favorites.find((f) => f.stopId === stopId);
+    return fav ? fav.customName : null;
+  };
+
   const handleFavoriteClick = (stop: BusStopData) => {
     const isFavorited = isStopFavorited(stop.StopID);
     if (isFavorited) {
@@ -635,6 +641,12 @@ export default function BusStopsPage({ user }: BusStopsPageProps) {
               stopName={`${selectedStop.Street || "Unknown"} & ${
                 selectedStop.CrossStreet || "Unknown"
               }`}
+              displayName={
+                getFavoriteName(selectedStop.StopID) ||
+                `${selectedStop.Street || "Unknown"} & ${
+                  selectedStop.CrossStreet || "Unknown"
+                }`
+              }
               user={user}
               favorites={favorites}
               initialScheduleData={scheduleData}
@@ -749,7 +761,11 @@ export default function BusStopsPage({ user }: BusStopsPageProps) {
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="text-white font-semibold text-sm">
-                    Stop #{stop.StopID}
+                    {getFavoriteName(stop.StopID) ? (
+                      <span>{getFavoriteName(stop.StopID)}</span>
+                    ) : (
+                      <span>Stop #{stop.StopID}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -826,7 +842,7 @@ export default function BusStopsPage({ user }: BusStopsPageProps) {
                 <thead className="bg-gray-700">
                   <tr>
                     <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Stop ID
+                      Stop ID / Name
                     </th>
                     <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Location
@@ -858,7 +874,7 @@ export default function BusStopsPage({ user }: BusStopsPageProps) {
                       }`}
                     >
                       <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium text-white">
-                        {stop.StopID}
+                        {getFavoriteName(stop.StopID) || stop.StopID}
                       </td>
                       <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-sm text-gray-200">
                         <div
